@@ -49,5 +49,6 @@
         "ratio": "cpp",
         "iomanip": "cpp",
         "thread": "cpp"
-    }
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

@@ -1,14 +1,6 @@
 #pragma once
 
 // -------------------
-// Thread configurations
-// -------------------
-// The number of worker threads.
-#define WORKER_NUM 9
-// The number of logger threads.
-#define LOGGER_NUM 3
-
-// -------------------
 // Data configurations
 // -------------------
 // The total number of tuples.

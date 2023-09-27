@@ -48,7 +48,13 @@
         "chrono": "cpp",
         "ratio": "cpp",
         "iomanip": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "condition_variable": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "unordered_set": "cpp",
+        "mutex": "cpp",
+        "cinttypes": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

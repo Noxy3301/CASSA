@@ -1,0 +1,2 @@
+masstreeを移植する前にOCHで動くかを確認する
+masstreeを移植したらOCHとcommonは消す予定

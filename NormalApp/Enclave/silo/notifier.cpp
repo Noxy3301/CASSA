@@ -6,7 +6,7 @@
 #include "include/notifier.h"
 // #include "include/debug.h"
 #include "include/logger.h"
-#include "../App/main.h"
+#include "../../App/App.h"
 
 void PepochFile::open() {
     fd_ = ::open(file_name_.c_str(), O_CREAT|O_TRUNC|O_RDWR, 0644);
@@ -59,8 +59,9 @@ uint64_t Notifier::check_durable() {
         if (b) {
             // store Durable Epoch
             pepoch_file_.write(min_dl);
-            int expected = ocall_count.load();
-            while (!ocall_count.compare_exchange_weak(expected, expected + 1));
+            // TODO: ocall_countの計測を残すかどうか
+            // int expected = ocall_count.load();
+            // while (!ocall_count.compare_exchange_weak(expected, expected + 1));
         }
     }
     return min_dl;

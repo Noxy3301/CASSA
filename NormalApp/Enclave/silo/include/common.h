@@ -5,14 +5,10 @@
 
 #include "tuple.h"
 
-#include "../../Include/consts.h"
+#include "../../../Include/consts.h"
 #include "../OCH.cpp"
 
-#if INDEX_PATTERN == INDEX_USE_MASSTREE
-// do declare masstree table
-#elif INDEX_PATTERN == INDEX_USE_OCH
 extern OptCuckoo<Tuple*> Table;
-#endif
 
 extern std::vector<uint64_t> ThLocalEpoch;
 extern std::vector<uint64_t> CTIDW;

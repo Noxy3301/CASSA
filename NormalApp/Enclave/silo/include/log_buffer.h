@@ -12,9 +12,7 @@
 #include "log_writer.h"
 #include "util.h"
 
-#include "../../Include/result.h"
-
-#include "../../App/main.h"
+#include "../../../App/App.h"
 
 #define LOG_BUFFER_SIZE (BUFFER_SIZE*1024/sizeof(LogRecord))
 #define LOG_ALLOC_SIZE (LOG_BUFFER_SIZE+512/sizeof(LogRecord)+1)
@@ -78,8 +76,9 @@ class LogBuffer {
             logfile.write((void*)&log_header, header_size);
             logfile.write((void*)log_set_, record_size);
             // ocall_count+2 (because write function called twice)
-            int expected = ocall_count.load();
-            while (!ocall_count.compare_exchange_weak(expected, expected + 2));
+            // TODO: ocall_countを計測する処理を残すかどうか
+            // int expected = ocall_count.load();
+            // while (!ocall_count.compare_exchange_weak(expected, expected + 2));
             // clear for next transactions
             log_set_size_ = 0;
         }

@@ -4,7 +4,7 @@
 bool chkEpochLoaded() {
     uint64_t nowepo = atomicLoadGE();
     // leader_workを実行しているのはthid:0だからforは1から回している？
-    for (unsigned int i = 1; i < THREAD_NUM; i++) {
+    for (unsigned int i = 1; i < WORKER_NUM; i++) {
         if (__atomic_load_n(&(ThLocalEpoch[i]), __ATOMIC_ACQUIRE) != nowepo) return false;
     }
     return true;
@@ -36,9 +36,8 @@ void ecall_initDB() {
     
     // init Table
     for (int i = 0; i < TUPLE_NUM; i++) {
-#if INDEX_PATTERN == INDEX_USE_OCH
         Tuple *tmp = new Tuple();
-#else
+#if 0
         Tuple *tmp;
         tmp = &Table[i];
 #endif
@@ -47,12 +46,11 @@ void ecall_initDB() {
         tmp->tidword_.lock = 0;
         tmp->key_ = random_array[i];
         tmp->val_ = 0;
-#if INDEX_PATTERN == INDEX_USE_OCH
+        
         Table.put(i,tmp,0);
-#endif
     }
 
-    for (int i = 0; i < THREAD_NUM; i++) {
+    for (int i = 0; i < WORKER_NUM; i++) {
         ThLocalEpoch[i] = 0;
         CTIDW[i] = ~(uint64_t)0;
     }

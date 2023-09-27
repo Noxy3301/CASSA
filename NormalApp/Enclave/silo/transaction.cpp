@@ -1,6 +1,6 @@
 #include <algorithm> // for sort function
 
-#include "../Include/consts.h"
+#include "../../Include/consts.h"
 
 #include "include/atomic_tool.h"
 #include "include/atomic_wrapper.h"
@@ -30,12 +30,8 @@ void TxExecutor::read(uint64_t key) {
     if (searchReadSet(key) || searchWriteSet(key)) goto FINISH_READ;
     Tuple *tuple;
     
-    // TODO: getとかに一元化したほうが良いかも
-#if INDEX_PATTERN == INDEX_USE_MASSTREE
-        // do something
-#elif INDEX_PATTERN == INDEX_USE_OCH
-        tuple = Table.get(key);
-#endif
+    // TODO: [masstree] masstree_getに変更
+    tuple = Table.get(key);
     
     expected.obj_ = loadAcquire(tuple->tidword_.obj_);
     
@@ -72,12 +68,9 @@ void TxExecutor::write(uint64_t key, uint64_t val) {
     if (re) {   //HACK: 仕様がわかってないよ(田中先生も)
         tuple = re->rcdptr_;
     } else {
+        // TODO: [masstree] masstree_getに変更
         // TODO: getとかに一元化したほうが良いかも
-#if INDEX_PATTERN == INDEX_USE_MASSTREE
-        tuple = &Table[key];
-#elif INDEX_PATTERN == INDEX_USE_OCH
         tuple = Table.get(key);
-#endif
     }
     write_set_.emplace_back(key, tuple, val);
 

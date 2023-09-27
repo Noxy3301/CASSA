@@ -39,3 +39,10 @@
 #define BUFFER_NUM 2
 // The size of each buffer in bytes.
 #define BUFFER_SIZE 512
+// The epoch difference (used for adjusting epoch-based mechanisms, but not used in this implementation).
+#define EPOCH_DIFF 0
+
+// -------------------
+// Cache line size configurations
+// -------------------
+#define CACHE_LINE_SIZE 64

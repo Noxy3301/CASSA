@@ -3,7 +3,7 @@
 #include "include/log_buffer.h"
 #include "include/log_queue.h"
 #include "include/notifier.h"
-#include "../Include/result.h"
+#include "../../Include/result.h"
 #include "include/util.h"
 
 void LogBufferPool::push(std::uint64_t tid, NotificationId &nid, std::vector<WriteElement> &write_set, uint32_t val, bool new_epoch_begins) {

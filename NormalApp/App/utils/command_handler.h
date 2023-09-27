@@ -39,7 +39,7 @@ public:
 
         // 各コマンドに対応するラムダ関数をマップに追加
         commandMap["help"] = [](const std::vector<std::string>&) {
-            std::cout << "[ INFO ] Available commands:\n"
+            std::cout << "Available commands:\n"
                       << "  - help: Display available commands and their usage.\n"
                       << "  - exit: Terminate the command handler.\n"
                       << "  - put <key> <value>: Set a value associated with the specified key.\n"

@@ -7,7 +7,7 @@
 #include <thread>
 #include <vector>
 
-#include "../../Include/consts.h"
+#include "../../../Include/consts.h"
 #include "log_buffer.h" // enqのxが不完全なクラスになるから入れないといけないっぽい
 
 class LogBuffer;

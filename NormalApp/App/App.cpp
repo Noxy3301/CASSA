@@ -6,8 +6,8 @@
 #include "App.h"
 
 #include "../Include/consts.h"
-#include "utils/command_handler.h"
-#include "utils/logger_affinity.h"
+#include "utils/include/command_handler.h"
+#include "utils/include/logger_affinity.h"
 
 // システム情報の表示関数
 void displaySystemInfo() {

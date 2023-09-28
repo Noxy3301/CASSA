@@ -30,7 +30,7 @@
 #define WORKER_NUM 9
 // The number of logger threads.
 // Note: It should be within the range [1, std::thread::hardware_concurrency() / 2].
-#define LOGGER_NUM 3
+#define LOGGER_NUM 63
 
 // -------------------
 // Buffer configurations

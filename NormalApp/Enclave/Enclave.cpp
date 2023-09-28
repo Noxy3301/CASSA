@@ -1,15 +1,15 @@
+#include <vector>
+
+#include "global_variables.h"
+
 #include "Enclave.h"
+#include "utils/atomic_wrapper.h"
 
-#include "silo/include/logger.h"
-#include "silo/include/notifier.h"
+#include "silo_cc/include/silo_logger.h"
+#include "silo_cc/include/silo_notifier.h"
+#include "silo_cc/include/silo_util.h"
 
-#include "silo/include/atomic_tool.h"
-#include "silo/include/atomic_wrapper.h"
-#include "silo/include/silo_op_element.h"
-#include "silo/include/transaction.h"
-#include "silo/include/tsc.h"
-#include "silo/include/util.h"
-#include "silo/include/zipf.h"
+#include "../Include/structures.h"
 
 uint64_t GlobalEpoch = 1;                  // Global Epoch
 std::vector<uint64_t> ThLocalEpoch;        // 各ワーカースレッドのLocal epoch, Global epochを参照せず、epoch更新時に更新されるLocal epochを参照してtxを処理する
@@ -29,7 +29,10 @@ std::vector<bool> readys;                  // 各ワーカースレッドの準�
 bool db_start = false;
 bool db_quit = false;
 
-OptCuckoo<Tuple*> Table(TUPLE_NUM*2);
+size_t num_worker_threads;
+size_t num_logger_threads;
+
+Masstree Table;
 
 void ecall_initializeGlobalVariables(size_t worker_num, size_t logger_num) {
     // Global epochを初期化する
@@ -41,6 +44,9 @@ void ecall_initializeGlobalVariables(size_t worker_num, size_t logger_num) {
     workerResults.resize(worker_num);
     loggerResults.resize(logger_num);
     readys.resize(worker_num);
+
+    num_worker_threads = worker_num;
+    num_logger_threads = logger_num;
 }
 
 void ecall_waitForReady() {

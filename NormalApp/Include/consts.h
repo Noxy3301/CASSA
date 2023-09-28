@@ -26,11 +26,11 @@
 // Thread configurations
 // -------------------
 // The number of worker threads.
-// Note: In interactive mode, all available threads not used as logger threads are utilized as worker threads.
 #define WORKER_NUM 9
 // The number of logger threads.
-// Note: It should be within the range [1, std::thread::hardware_concurrency() / 2].
-#define LOGGER_NUM 63
+// Note: It is recommended to set the number of logger threads (LOGGER_NUM) to be less than the number of worker threads (WORKER_NUM).
+//       Ideally, WORKER_NUM should be an integer multiple of LOGGER_NUM.
+#define LOGGER_NUM 3
 
 // -------------------
 // Buffer configurations

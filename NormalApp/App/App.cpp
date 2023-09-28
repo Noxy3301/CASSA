@@ -15,15 +15,19 @@ void displaySystemInfo() {
 
     // 利用可能なスレッドの数を取得する
     unsigned int numThreads = std::thread::hardware_concurrency();
-    unsigned int workerThreads = numThreads - LOGGER_NUM;
     // スレッド数が0(取得できない)場合
     if(numThreads == 0) {
         std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "Unable to detect available threads or no threads are available." << std::endl;
         exit(1);
     }
+    // ワーカースレッドの数とロガースレッドの数が利用可能なスレッドの数より多い場合
+    if (WORKER_NUM + LOGGER_NUM > numThreads) {
+        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "The number of Worker Threads and Logger Threads must be less than or equal to the number of available threads." << std::endl;
+        exit(1);
+    }
     // ワーカースレッド数が0以下の場合
-    if (workerThreads <= 0) {
-        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "There must be at least one Worker Thread." << std::endl;
+    if (WORKER_NUM <= 0) {
+        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "There must be at least one Worker Thread. (check WORKER_NUM indicated in consts.h)" << std::endl;
         exit(1);
     }
     // ロガースレッドの数が0以下の場合
@@ -32,9 +36,8 @@ void displaySystemInfo() {
         exit(1);
     }
     // ロガースレッドがhardware_concurrency()より多い場合
-    if(LOGGER_NUM >= numThreads) {
-        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "LOGGER_NUM must be less than the total number of available threads." << std::endl;
-        exit(1);
+    if(LOGGER_NUM >= WORKER_NUM) {
+        std::cout << "\033[33m" << "[ WARNING  ] " << "\033[0m" << "It is recommended to set LOGGER_NUM to be less than WORKER_NUM to avoid the possibility of having unused logger threads." << std::endl;
     }
 
     int labelWidth = 20; // Width for the labels
@@ -44,7 +47,7 @@ void displaySystemInfo() {
 
     unsigned int maxLoggerThreads = numThreads / 2;
     std::cout << std::right << std::setw(labelWidth) << "Available Threads : " << std::left << std::setw(valueWidth) << numThreads << std::endl;
-    std::cout << std::right << std::setw(labelWidth) <<  "- Worker threads : " << std::left << std::setw(valueWidth) << workerThreads << std::endl;
+    std::cout << std::right << std::setw(labelWidth) <<  "- Worker threads : " << std::left << std::setw(valueWidth) << WORKER_NUM << std::endl;
     std::cout << std::right << std::setw(labelWidth) <<  "- Logger threads : " << std::left << std::setw(valueWidth) << LOGGER_NUM << std::endl;
 
     // CPUクロック周波数の取得
@@ -88,12 +91,9 @@ void logger_thread_work(size_t logger_thid) {
 void createThreads(std::vector<std::thread>& worker_threads, std::vector<std::thread>& logger_threads) {
     std::cout << "\033[32m" << "[ INFO     ] " << "\033[0m" << "create threads...\n";
     // WorkerとLoggerのスレッドを均等にCPUコアに割り当て、グループ化するアフィニティを設定する
-    unsigned int num_total_threads = std::thread::hardware_concurrency();
-    unsigned int num_worker_threads = num_total_threads - LOGGER_NUM;
-
     // アフィニティに基づいてWorkerとLoggerのスレッドを起動する
     LoggerAffinity affin;
-    affin.init(num_worker_threads, LOGGER_NUM);
+    affin.init(WORKER_NUM, LOGGER_NUM);
     size_t w_thid = 0;  // Workerのthread ID
     size_t l_thid = 0;  // Loggerのthread ID, Workerのgroup IDとしても機能する
     for (auto itr = affin.nodes_.begin(); itr != affin.nodes_.end(); itr++, l_thid++) {
@@ -146,12 +146,9 @@ int main() {
     std::vector<std::thread> worker_threads;
     std::vector<std::thread> logger_threads;
 
-    unsigned int num_total_threads = std::thread::hardware_concurrency();
-    unsigned int num_worker_threads = num_total_threads - LOGGER_NUM;
-
     displaySystemInfo();
     performAttestation();
-    initializeEnclave(num_worker_threads, LOGGER_NUM);
+    initializeEnclave(WORKER_NUM, LOGGER_NUM);
     createThreads(worker_threads, logger_threads);
     awaitUserCommands();
     destroyThreads(worker_threads, logger_threads);

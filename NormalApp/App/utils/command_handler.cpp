@@ -11,6 +11,7 @@ bool CommandHandler::handleCommand(const std::string& command) {
     std::istringstream stream(command); // コマンド文字列からストリームを作成
     std::vector<std::string> tokens;    // トークンを格納するベクター
     std::string token;
+
     // ストリームからトークンを取り出す
     while (stream >> token) {
         if (!isAscii(token)) {
@@ -19,17 +20,20 @@ bool CommandHandler::handleCommand(const std::string& command) {
         }
         tokens.push_back(token);
     }
+
     // トークンが存在しない場合、trueを返す
     if (tokens.empty()) return true;
+
     // コマンドマップの作成
     std::unordered_map<std::string, std::function<bool(const std::vector<std::string>&)>> commandMap;
+    
     // 各コマンドに対応するラムダ関数をマップに追加
     commandMap["help"] = [](const std::vector<std::string>&) {
         std::cout << "Available commands:\n"
                   << "  - help: Display available commands and their usage.\n"
                   << "  - exit: Terminate the command handler.\n"
-                  << "  - put <key> <value>: Set a value associated with the specified key.\n"
-                  << "  - get <key>: Retrieve the value associated with the specified key.\n"
+                  << "  - write <key> <value>: Set a value associated with the specified key.\n"
+                  << "  - read <key>: Retrieve the value associated with the specified key.\n"
                   << "  - mktable <name>: Create a new table with the specified name.\n"
                   << "Usage:\n"
                   << "  - All commands are case-sensitive.\n"
@@ -37,28 +41,47 @@ bool CommandHandler::handleCommand(const std::string& command) {
                   << "  - Only ASCII characters are allowed in commands and arguments.\n";
         return true;
     };
+
     commandMap["exit"] = [](const std::vector<std::string>&) {
         return false;
     };
-    commandMap["put"] = [](const std::vector<std::string>& args) {
+
+    commandMap["write"] = [this](const std::vector<std::string>& args) {
         if (args.size() < 3) {
-            std::cout << "Error: Too few arguments"  << " (Usage: put <key> <value>)" << std::endl;
+            std::cout << "Error: Too few arguments"  << " (Usage: write <key> <value>)" << std::endl;
             return true;
         } else if (args.size() > 3) {
-            std::cout << "Error: Too many arguments" << " (Usage: put <key> <value>)" << std::endl;
+            std::cout << "Error: Too many arguments" << " (Usage: write <key> <value>)" << std::endl;
             return true;
         }
-        std::cout << "Setting key: " << args[1] << " to value: " << args[2] << std::endl;
+        // 正常なwriteコマンドが来た場合は、コマンドに対応する処理を実行
+        std::vector<char> write_serialized_data = serializeCommand(OpType::WRITE, args[1], args[2]);
+
+        // 0からWORKER_NUM-1までの乱数を生成
+        size_t worker_thid = rnd() % WORKER_NUM;
+
+        // Enclaveにトランザクションを渡す、worker_thidはランダムで設定
+        ecall_push_tx(worker_thid, txIDcounter_, reinterpret_cast<const uint8_t*>(write_serialized_data.data()), write_serialized_data.size());
+        txIDcounter_++;
+
+        // std::cout << "Setting key: " << args[1] << " to value: " << args[2] << std::endl;
         return true;
     };
-    commandMap["get"] = [](const std::vector<std::string>& args) {
+
+    commandMap["read"] = [this](const std::vector<std::string>& args) {
         if (args.size() < 2) {
-            std::cout << "Error: Too few arguments"  << " (Usage: get <key>)" << std::endl;
+            std::cout << "Error: Too few arguments"  << " (Usage: read <key>)" << std::endl;
             return true;
         } else if (args.size() > 2) {
-            std::cout << "Error: Too many arguments" << " (Usage: get <key>)" << std::endl;
+            std::cout << "Error: Too many arguments" << " (Usage: read <key>)" << std::endl;
             return true;
         }
+        // 正常なreadコマンドが来た場合は、コマンドに対応する処理を実行
+        std::vector<char> write_serialized_data = serializeCommand(OpType::READ, args[1]);
+
+
+
+
         std::cout << "Retrieving value for key: " << args[1] << std::endl;
         std::cout << "Value: DUMMY_VALUE" << std::endl; // 仮の値（ダミー）を出力
         return true;
@@ -73,4 +96,26 @@ bool CommandHandler::handleCommand(const std::string& command) {
         std::cout << "Unknown command: " << tokens[0] << std::endl;
         return true; // 不明なコマンドが来た場合でも、処理を続行
     }
+}
+
+std::vector<char> CommandHandler::serializeCommand(OpType opType, const std::string& key, const std::string &value) {
+    std::vector<char> data;
+    
+    // Serialize OpType
+    data.push_back(static_cast<std::uint8_t>(opType));
+    
+    // Serialize Key
+    uint32_t key_size = key.size();
+    data.insert(data.end(), reinterpret_cast<const char*>(&key_size), reinterpret_cast<const char*>(&key_size) + sizeof(key_size));
+    data.insert(data.end(), key.begin(), key.end());
+
+    // Serialize Value if necessary
+    if (opType == OpType::WRITE || opType == OpType::INSERT || opType == OpType::RMW) {
+        // Serialize Value
+        uint32_t value_size = value.size();
+        data.insert(data.end(), reinterpret_cast<const char*>(&value_size), reinterpret_cast<const char*>(&value_size) + sizeof(value_size));
+        data.insert(data.end(), value.begin(), value.end());
+    }
+    
+    return data;
 }

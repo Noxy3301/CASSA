@@ -31,3 +31,13 @@ enum LoggerResultType : uint8_t {
     WriteLatency,
     WaitLatency,
 };
+
+enum class OpType : uint8_t {
+    NONE,
+    READ,
+    WRITE,
+    INSERT,
+    DELETE,
+    SCAN,
+    RMW,
+};

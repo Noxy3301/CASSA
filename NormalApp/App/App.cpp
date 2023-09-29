@@ -40,24 +40,21 @@ void displaySystemInfo() {
         std::cout << "\033[33m" << "[ WARNING  ] " << "\033[0m" << "It is recommended to set LOGGER_NUM to be less than WORKER_NUM to avoid the possibility of having unused logger threads." << std::endl;
     }
 
-    int labelWidth = 20; // Width for the labels
-    int valueWidth = 10; // Width for the values
-    std::cout << std::right << std::setw(labelWidth) <<        "SystemName : " << std::left << std::setw(valueWidth) << "CASSA" << std::endl;
-    std::cout << std::right << std::setw(labelWidth) <<           "Version : " << std::left << std::setw(valueWidth) << "0.0.1" << std::endl;
-
-    unsigned int maxLoggerThreads = numThreads / 2;
-    std::cout << std::right << std::setw(labelWidth) << "Available Threads : " << std::left << std::setw(valueWidth) << numThreads << std::endl;
-    std::cout << std::right << std::setw(labelWidth) <<  "- Worker threads : " << std::left << std::setw(valueWidth) << WORKER_NUM << std::endl;
-    std::cout << std::right << std::setw(labelWidth) <<  "- Logger threads : " << std::left << std::setw(valueWidth) << LOGGER_NUM << std::endl;
-
     // CPUクロック周波数の取得
     unsigned long cpuFreq = 0; // 初期化しておく
     std::ifstream("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq") >> cpuFreq;
-    if (!cpuFreq) std::cerr << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "reading CPU frequency!" << std::endl;
-    std::cout << std::right << std::setw(labelWidth) << "CPU Clock : "         << std::left << std::setw(valueWidth) << (std::to_string(cpuFreq/1000) + " MHz") << std::endl;
+
+    int labelWidth = 20; // Width for the labels
+    int valueWidth = 10; // Width for the values
+    std::cout << std::left  << std::setw(35) << "  ____    _    ____ ____    _"           << std::right << std::setw(labelWidth) <<        "SystemName : " << std::left << std::setw(valueWidth) << "CASSA" << std::endl;
+    std::cout << std::left  << std::setw(35) << " / ___|  / \\  / ___/ ___|  / \\"        << std::right << std::setw(labelWidth) <<           "Version : " << std::left << std::setw(valueWidth) << "0.0.1" << std::endl;
+    std::cout << std::left  << std::setw(35) << "| |     / _ \\ \\___ \\___ \\ / _ \\"    << std::right << std::setw(labelWidth) << "Available Threads : " << std::left << std::setw(valueWidth) << numThreads << std::endl;
+    std::cout << std::left  << std::setw(35) << "| |___ / ___ \\ ___) |__) / ___ \\"      << std::right << std::setw(labelWidth) <<  "- Worker threads : " << std::left << std::setw(valueWidth) << WORKER_NUM << std::endl;
+    std::cout << std::left  << std::setw(35) << " \\____/_/   \\_\\____/____/_/   \\_\\"  << std::right << std::setw(labelWidth) <<  "- Logger threads : " << std::left << std::setw(valueWidth) << LOGGER_NUM << std::endl;
+    std::cout << std::right << std::setw(35) <<                              "ver.0.0.1 " << std::right << std::setw(labelWidth) <<         "CPU Clock : " << std::left << std::setw(valueWidth) << (std::to_string(cpuFreq/1000) + " MHz") << std::endl;
 
     // 警告文を表示する
-    if (LOGGER_NUM > maxLoggerThreads)   std::cout << "\033[33m[ CAUTION  ] Logger threads should be within the range [1, " + std::to_string(maxLoggerThreads) + "]!\033[0m" << std::endl;
+    if (!cpuFreq) std::cerr << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "reading CPU frequency!" << std::endl;
     if (cpuFreq != CLOCKS_PER_US * 1000) std::cout << "\033[33m[ CAUTION  ] CPU Clock is different from CLOCKS_PER_US (" + std::to_string(CLOCKS_PER_US) + " MHz)!\033[0m" << std::endl;
 }
 
@@ -121,6 +118,7 @@ void awaitUserCommands() {
             // EOFが検出された、またはhandler.handleCommandがfalseを返した場合
             break; // whileループを抜ける
         }
+        // std::cout << std::endl;
     }
 }
 
@@ -139,6 +137,14 @@ void destroyThreads(std::vector<std::thread>& worker_threads, std::vector<std::t
 void destroyEnclave() {
     std::cout << "\033[32m" << "[ INFO     ] " << "\033[0m" << "Destroying Enclave..." << std::endl;
     // Enclaveの破壊ロジックをここに実装する
+}
+
+void ocall_print_commit_message(size_t txIDcounter, size_t num_process_record) {
+    std::cout << "\r";
+    std::cout << "\033[32m" << "Transaction " << txIDcounter << " committed." << "\033[0m"
+              << " ( " << std::to_string(num_process_record) + " record" << (num_process_record >= 2 ? "s" : "") << " processed. )" << std::endl;
+    std::cout << "> ";
+    std::cout.flush();
 }
 
 int main() {

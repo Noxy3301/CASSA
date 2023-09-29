@@ -1,5 +1,7 @@
 #include <vector>
 
+#include <iostream> // for debug
+
 #include "global_variables.h"
 
 #include "Enclave.h"
@@ -10,6 +12,8 @@
 #include "silo_cc/include/silo_util.h"
 
 #include "../Include/structures.h"
+
+#include "utils/transaction_manager.h"
 
 uint64_t GlobalEpoch = 1;                  // Global Epoch
 std::vector<uint64_t> ThLocalEpoch;        // 各ワーカースレッドのLocal epoch, Global epochを参照せず、epoch更新時に更新されるLocal epochを参照してtxを処理する
@@ -33,6 +37,18 @@ size_t num_worker_threads;
 size_t num_logger_threads;
 
 Masstree Table;
+TransactionManager TxManager(WORKER_NUM);
+
+// TODO: この実装は絶対に良くないので変える、一旦デバッグ用ということで
+// std::condition_variable cv;
+// std::mutex mtx;
+
+void ecall_push_tx(size_t worker_thid, size_t txIDcounter, const uint8_t* tx_data, size_t tx_size) {
+    // Push the transaction to the appropriate queue in TransactionManager
+    // std::unique_lock<std::mutex> lock(mtx);
+    TxManager.pushTransaction(worker_thid, txIDcounter, tx_data, tx_size);
+    // cv.wait(lock); // コミットが完了するまで待つ
+}
 
 void ecall_initializeGlobalVariables(size_t worker_num, size_t logger_num) {
     // Global epochを初期化する
@@ -86,6 +102,65 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
     while (!db_quit) {
         // ワーカースレッドのメイン処理
         waitTime_ns(100);
+
+    RETRY:
+        if (worker_thid == 0) trans.leaderWork();
+        trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, db_quit);
+
+        if (__atomic_load_n(&db_quit, __ATOMIC_ACQUIRE)) break;
+
+        std::optional<Procedure> proc = TxManager.popTransaction(worker_thid);
+        if (proc.has_value()) {
+            // procedureをKey/Valueに展開する
+            size_t txID = proc.value().txIDcounter_;
+            OpType opType = proc.value().ope_;
+            Key key(proc.value().key_);
+            Value *value = new Value(proc.value().value_);
+
+            // std::cout << "\r";
+            // std::cout << "worker_thid = " << worker_thid << std::endl;
+            // std::cout << "opType = " << static_cast<int>(opType) << std::endl;
+            // std::cout << "key = " << proc.value().key_ << std::endl;
+            // std::cout << "value = " << proc.value().value_ << std::endl;
+
+            // procedureを実行する
+            // TODO: 複数のprocedureをまとめて実行するようにする、すなわちpro_set_に登録して、一括で実行する
+            trans.begin();
+            switch (opType) {
+                // case OpType::INSERT:
+                //     trans.insert(key, value);
+                //     break;
+                case OpType::READ:
+                    trans.read(key, value); // TODO: readでvalue???
+                    break;
+                case OpType::WRITE:
+                    trans.write(key, value);
+                    break;
+                // case OpType::RMW:
+                //     trans.rmw(key, value);
+                //     break;
+                // case OpType::SCAN:
+                //     trans.scan(key);
+                //     break;
+                // case OpType::DELETE:
+                //     trans.del(key);
+                //     break;
+                default:
+                    assert(false);  // ここには来ないはず
+                    break;
+            }
+
+            if (trans.validationPhase()) {
+                trans.writePhase();
+                storeRelease(myres.local_commit_count_, loadAcquire(myres.local_commit_count_) + 1);
+                // std::cout << "this transaction has been committed" << std::endl;
+                // cv.notify_one();
+                ocall_print_commit_message(txID, 0);
+            } else {
+                trans.abort();
+                goto RETRY;
+            }
+        }
     }
 
 

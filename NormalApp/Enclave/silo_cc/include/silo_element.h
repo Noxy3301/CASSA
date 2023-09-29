@@ -3,15 +3,7 @@
 #include "../../utils/db_key.h"
 #include "../../utils/db_value.h"
 
-enum class OpType : std::uint8_t {
-    NONE,
-    READ,
-    SCAN,
-    INSERT,
-    DELETE,
-    UPDATE,
-    RMW,
-};
+#include "../../../Include/structures.h"
 
 class OpElement {
 public:

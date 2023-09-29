@@ -101,7 +101,7 @@ Status TxExecutor::write(Key &key, Value *value) {
         if (found_value == nullptr) return Status::WARN_NOT_FOUND;
     }
 
-    write_set_.emplace_back(key, found_value, value, OpType::UPDATE);
+    write_set_.emplace_back(key, found_value, value, OpType::WRITE);
 
 FINISH_WRITE:
     return Status::OK;
@@ -251,7 +251,7 @@ void TxExecutor::writePhase() {
     for (auto itr = write_set_.begin(); itr != write_set_.end(); itr++) {
         // update and unlock
         switch ((*itr).op_) {
-            case OpType::UPDATE:
+            case OpType::WRITE:
                 itr->value_->body_ = itr->get_new_value()->body_;    // update "value_.body_" using "get_new_value().body_"
                 storeRelease(itr->value_->tidword_.obj_, maxtid.obj_);
                 break;

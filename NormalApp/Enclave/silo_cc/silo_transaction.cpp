@@ -34,8 +34,19 @@ bool TxExecutor::commit() {
 
 // トランザクションの操作
 
-// TODO: insert implementation
-// Status TxExecutor::insert(Key &key, Value *value) {}
+Status TxExecutor::insert(Key &key, Value *value) {
+    if (searchWriteSet(key)) return Status::WARN_ALREADY_EXISTS;
+
+    Value *found_value = Table.get(key);
+    if (found_value != nullptr) return Status::WARN_ALREADY_EXISTS;
+
+    // searchWriteSetにもTableにも存在しない場合は、新規レコードを作成してwrite_set_に追加
+    found_value = value;
+
+    // TODO: masstreeのputはvoid関数だから、適切な箇所でStatusを保持させる必要がある
+    //       valueまで掘り下げて、valueがすでにセットされているならWARN_ALREADY_EXISTSを返すみたいな
+    // Status status = 
+}
 
 // TODO: delete implementation
 // void TxExecutor::tx_delete(Key &key) {}

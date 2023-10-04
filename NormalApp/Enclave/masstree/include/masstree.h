@@ -13,7 +13,8 @@ class Masstree {
             return v;
         }
 
-        void put(Key &key, Value *value, GarbageCollector &gc) {
+        Status put(Key &key, Value *value, GarbageCollector &gc) {
+            Status status = Status::OK;
         RETRY:
             Node *old_root = root.load(std::memory_order_acquire);
             std::pair<PutResult, Node*> resultPair = masstree_put(old_root, key, value, gc);
@@ -25,7 +26,7 @@ class Masstree {
             if (old_root == nullptr) {
                 bool CAS_success = root.compare_exchange_weak(old_root, new_root);
                 if (CAS_success) {
-                    return;
+                    return status;
                 } else {
                     // ハァ...ハァ...敗北者...?(new_rootを消す)
                     assert(new_root != nullptr);
@@ -40,6 +41,8 @@ class Masstree {
                 assert(old_root != nullptr);
                 root.store(new_root, std::memory_order_release);
             }
+
+            return status;
         }
 
 

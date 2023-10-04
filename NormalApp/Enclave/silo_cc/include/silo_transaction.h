@@ -71,7 +71,7 @@ public:
     bool commit(); // トランザクションのコミット
     
     // トランザクションの操作
-    // Status insert(Key &key, Value *value); // キーと値の挿入
+    Status insert(Key &key, Value *value); // キーと値の挿入
     // void tx_delete(Key &key); // キーの削除
     Status read(Key &key, Value *value); // キーの読み出し
     Status write(Key &key, Value *value); // キーへの書き込み

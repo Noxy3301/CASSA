@@ -115,7 +115,7 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
             size_t txID = proc.value().txIDcounter_;
             OpType opType = proc.value().ope_;
             Key key(proc.value().key_);
-            Value *value = new Value(proc.value().value_);
+            Value *value = new Value(proc.value().value_);  // TODO: heapに確保しているから適切なタイミングでdeleteする必要がある
 
             // std::cout << "\r";
             // std::cout << "worker_thid = " << worker_thid << std::endl;
@@ -127,9 +127,9 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
             // TODO: 複数のprocedureをまとめて実行するようにする、すなわちpro_set_に登録して、一括で実行する
             trans.begin();
             switch (opType) {
-                // case OpType::INSERT:
-                //     trans.insert(key, value);
-                //     break;
+                case OpType::INSERT:
+                    trans.insert(key, value);
+                    break;
                 case OpType::READ:
                     trans.read(key, value); // TODO: readでvalue???
                     break;
@@ -149,6 +149,9 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
                     assert(false);  // ここには来ないはず
                     break;
             }
+
+            // std::cout << trans.read_set_.size() << std::endl;
+            // std::cout << trans.write_set_.size() << std::endl;
 
             if (trans.validationPhase()) {
                 trans.writePhase();

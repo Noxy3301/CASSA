@@ -36,7 +36,7 @@ bool db_quit = false;
 size_t num_worker_threads;
 size_t num_logger_threads;
 
-Masstree Table;
+Masstree masstree;
 TransactionManager TxManager(WORKER_NUM);
 
 // TODO: この実装は絶対に良くないので変える、一旦デバッグ用ということで
@@ -128,6 +128,8 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
             trans.begin();
             switch (opType) {
                 case OpType::INSERT:
+                    // insert recordはabsent bitを立てて見えないようにする
+                    value->tidword_.absent = true;
                     trans.insert(key, value);
                     break;
                 case OpType::READ:

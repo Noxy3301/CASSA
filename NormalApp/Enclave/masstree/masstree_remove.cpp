@@ -204,6 +204,7 @@ FORWARD:
         // 無いもんは消せねえ(´・ω・`)
         // NOTE: ところで、無い場合はその旨を通知するべきなのか？
         borderNode->unlock();
+        return std::make_pair(DataNotFound, root);
     } else if (result == VALUE) {
         /**
          * [1] - もし要素が1つしかないBorderNodeがRootの場合
@@ -262,6 +263,6 @@ FORWARD:
     return std::make_pair(NotChange, root);
 }
 
-Node *remove_at_layer0(Node *root, Key &key, GarbageCollector &gc) {
-    return remove(root, key, gc).second;
+std::pair<RootChange, Node*> remove_at_layer0(Node *root, Key &key, GarbageCollector &gc) {
+    return remove(root, key, gc);
 }

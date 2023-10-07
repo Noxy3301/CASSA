@@ -11,4 +11,5 @@ enum class Status : std::int32_t {
     ERROR_LOCK_FAILED,
     ERROR_PREEMPTIVE_ABORT,
     ERROR_NO_VISIBLE_VERSION,
+    RETRY_FROM_UPPER_LAYER, // for Masstree
 };

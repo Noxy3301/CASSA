@@ -6,7 +6,8 @@
 enum RootChange : uint8_t {
     NotChange,
     NewRoot,
-    LayerDeleted
+    LayerDeleted,
+    DataNotFound,
 };
 
 void handle_delete_layer_in_remove(BorderNode *borderNode, GarbageCollector &gc);
@@ -15,4 +16,4 @@ std::pair<RootChange, Node*> delete_borderNode_in_remove(BorderNode *borderNode,
 
 std::pair<RootChange, Node*> remove(Node *root, Key &key, GarbageCollector &gc);
 
-Node *remove_at_layer0(Node *root, Key &key, GarbageCollector &gc);
+std::pair<RootChange, Node*> remove_at_layer0(Node *root, Key &key, GarbageCollector &gc);

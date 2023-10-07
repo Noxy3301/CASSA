@@ -1,4 +1,4 @@
-#include "include/masstree_put.h"
+#include "include/masstree_insert.h"
 
 // Layer0がempty(Masstreeが空)の場合、新しいMasstreeを作る
 BorderNode *start_new_tree(const Key &key, Value *value) {
@@ -470,9 +470,9 @@ ASCEND:
     }
 }
 
-std::pair<PutResult, Node*> masstree_put(Node *root, Key &key, Value *value, GarbageCollector &gc) {
+std::pair<Status, Node*> masstree_insert(Node *root, Key &key, Value *value, GarbageCollector &gc) {
     // Layer0がemptyの場合
-    if (root == nullptr) return std::make_pair(DONE, start_new_tree(key, value));
+    if (root == nullptr) return std::make_pair(Status::OK, start_new_tree(key, value));
 RETRY:
     // BorderNodeを探してロックする
     std::pair<BorderNode *, Version> node_version = findBorder(root, key);
@@ -490,7 +490,7 @@ FORWARD:
             // Layer0がempty or keyが下位ノードに移動した場合
             // Root nodeが消去されている場合その親ノードが新しいRoot nodeを指している可能性があるから
             // NOTE: is_rootなら上位レイヤからやり直した方がいいのは効率がいいからっていうのは分かる、ただis_rootだけなんで上位レイヤからやり直すの？って言われたらわからん；；
-            return std::make_pair(RetryFromUpperLayer, nullptr);
+            return std::make_pair(Status::RETRY_FROM_UPPER_LAYER, nullptr);
         } else {
             goto RETRY;
         }
@@ -500,6 +500,7 @@ FORWARD:
     SearchResult result = std::get<0>(result_lv_index);
     LinkOrValue lv      = std::get<1>(result_lv_index);
     size_t index        = std::get<2>(result_lv_index);
+
     if (Version::splitHappened(version, node->getVersion())) {
         // findBorder -> lockの間に他スレッドによってsplit処理が起きた場合
         BorderNode *next = node->getNext();
@@ -525,8 +526,8 @@ FORWARD:
             Node *next_layer = node->getLV(old_index).next_layer;
             node->unlock();
             key.next();
-            std::pair<PutResult, Node *> pair = masstree_put(next_layer, key, value, gc);
-            if (pair.first == RetryFromUpperLayer) {
+            std::pair<Status, Node *> pair = masstree_insert(next_layer, key, value, gc);
+            if (pair.first == Status::RETRY_FROM_UPPER_LAYER) {
                 key.back();
                 goto RETRY;
             }
@@ -536,19 +537,19 @@ FORWARD:
                 node->unlock();
             } else {    // permutationが一杯の状態
                 Node *may_new_root = split(node, key, value);
-                if (may_new_root != nullptr) return std::make_pair(DONE, may_new_root);
+                if (may_new_root != nullptr) return std::make_pair(Status::OK, may_new_root);
             }
         }
-    } else if (result == VALUE) {       // Keyに対応するValueがあるのでupdateする
-        // updateを行う
-        gc.add(node->getLV(index).value);
-        node->setLV(index, LinkOrValue(value));
+    } else if (result == VALUE) {
+        // 本来ならここでValueを更新するが、Masstree_putはSiloのinsertでしか呼ばない
+        // そのため、更新処理ではなく、WARN_ALREADY_EXISTを返す
         node->unlock();
+        return std::make_pair(Status::WARN_ALREADY_EXISTS, root);
     } else if (result == LAYER) {
         node->unlock();
         key.next();
-        std::pair<PutResult, Node*> pair = masstree_put(lv.next_layer, key, value, gc);
-        if (pair.first == RetryFromUpperLayer) {
+        std::pair<Status, Node*> pair = masstree_insert(lv.next_layer, key, value, gc);
+        if (pair.first == Status::RETRY_FROM_UPPER_LAYER) {
             key.back();
             goto RETRY;
         }
@@ -556,5 +557,5 @@ FORWARD:
         // result == UNSTABLE;  ここに来ることはないのでassert(false)で落としておく
         assert(false);
     }
-    return std::make_pair(DONE, root);
+    return std::make_pair(Status::OK, root);
 }

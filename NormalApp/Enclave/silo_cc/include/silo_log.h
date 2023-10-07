@@ -32,8 +32,9 @@ public:
     std::string val_;
 
     LogRecord() : tid_(0), key_(""), val_("") {}
-    LogRecord(uint64_t tid, const std::string &key, const std::string &val) 
+    LogRecord(uint64_t tid, std::string key, std::string val) 
         : tid_(tid), key_(key), val_(val) {}
+
 
     std::vector<char> serialize() const {
         // Serialize tid_, key_, and val_ into a byte vector

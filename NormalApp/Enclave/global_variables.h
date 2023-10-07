@@ -5,7 +5,7 @@
 
 #include "masstree/include/masstree.h"
 
-extern Masstree Table;
+extern Masstree masstree;
 
 extern std::vector<uint64_t> ThLocalEpoch;
 extern std::vector<uint64_t> CTIDW;

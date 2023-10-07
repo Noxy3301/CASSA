@@ -32,6 +32,7 @@ bool CommandHandler::handleCommand(const std::string& command) {
         std::cout << "Available commands:\n"
                   << "  - help: Display available commands and their usage.\n"
                   << "  - exit: Terminate the command handler.\n"
+                  << "  - insert <key> <value>: Insert a new key-value pair.\n"
                   << "  - write <key> <value>: Set a value associated with the specified key.\n"
                   << "  - read <key>: Retrieve the value associated with the specified key.\n"
                   << "  - mktable <name>: Create a new table with the specified name.\n"
@@ -46,6 +47,27 @@ bool CommandHandler::handleCommand(const std::string& command) {
         return false;
     };
 
+    commandMap["insert"] = [this](const std::vector<std::string>& args) {
+        if (args.size() < 3) {
+            std::cout << "Error: Too few arguments"  << " (Usage: insert <key> <value>)" << std::endl;
+            return true;
+        } else if (args.size() > 3) {
+            std::cout << "Error: Too many arguments" << " (Usage: insert <key> <value>)" << std::endl;
+            return true;
+        }
+        // 正常なinsertコマンドが来た場合は、コマンドに対応する処理を実行
+        std::vector<char> serialized_data = serializeCommand(OpType::INSERT, args[1], args[2]);
+
+        // 0からWORKER_NUM-1までの乱数を生成
+        size_t worker_thid = rnd() % WORKER_NUM;
+
+        // Enclaveにトランザクションを渡す、worker_thidはランダムで設定
+        ecall_push_tx(worker_thid, txIDcounter_, reinterpret_cast<const uint8_t*>(serialized_data.data()), serialized_data.size());
+        txIDcounter_++;
+
+        return true;
+    };
+
     commandMap["write"] = [this](const std::vector<std::string>& args) {
         if (args.size() < 3) {
             std::cout << "Error: Too few arguments"  << " (Usage: write <key> <value>)" << std::endl;
@@ -55,13 +77,13 @@ bool CommandHandler::handleCommand(const std::string& command) {
             return true;
         }
         // 正常なwriteコマンドが来た場合は、コマンドに対応する処理を実行
-        std::vector<char> write_serialized_data = serializeCommand(OpType::WRITE, args[1], args[2]);
+        std::vector<char> serialized_data = serializeCommand(OpType::WRITE, args[1], args[2]);
 
         // 0からWORKER_NUM-1までの乱数を生成
         size_t worker_thid = rnd() % WORKER_NUM;
 
         // Enclaveにトランザクションを渡す、worker_thidはランダムで設定
-        ecall_push_tx(worker_thid, txIDcounter_, reinterpret_cast<const uint8_t*>(write_serialized_data.data()), write_serialized_data.size());
+        ecall_push_tx(worker_thid, txIDcounter_, reinterpret_cast<const uint8_t*>(serialized_data.data()), serialized_data.size());
         txIDcounter_++;
 
         // std::cout << "Setting key: " << args[1] << " to value: " << args[2] << std::endl;
@@ -77,13 +99,15 @@ bool CommandHandler::handleCommand(const std::string& command) {
             return true;
         }
         // 正常なreadコマンドが来た場合は、コマンドに対応する処理を実行
-        std::vector<char> write_serialized_data = serializeCommand(OpType::READ, args[1]);
+        std::vector<char> serialized_data = serializeCommand(OpType::READ, args[1]);
 
+        // 0からWORKER_NUM-1までの乱数を生成
+        size_t worker_thid = rnd() % WORKER_NUM;
 
+        // Enclaveにトランザクションを渡す、worker_thidはランダムで設定
+        ecall_push_tx(worker_thid, txIDcounter_, reinterpret_cast<const uint8_t*>(serialized_data.data()), serialized_data.size());
+        txIDcounter_++;
 
-
-        std::cout << "Retrieving value for key: " << args[1] << std::endl;
-        std::cout << "Value: DUMMY_VALUE" << std::endl; // 仮の値（ダミー）を出力
         return true;
     };
     // 他のコマンドも同様に追加する

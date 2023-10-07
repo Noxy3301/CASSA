@@ -12,12 +12,12 @@ void TxExecutor::begin() {
 
 void TxExecutor::abort() {
     // remove inserted records
-    // for (auto &we : write_set_) {
-    //     if (we.op_ == OpType::INSERT) {
-    //         Masstrees[get_storage(we.storage_)].remove_value(we.key_); //
-    //         TODO: delete implementation delete we.rcdptr_;
-    //     }
-    // }
+    for (auto &we : write_set_) {
+        if (we.op_ == OpType::INSERT) {
+            masstree.remove_value(we.key_, gc_);
+            delete we.get_new_value();
+        }
+    }
 
     read_set_.clear();
     write_set_.clear();
@@ -35,17 +35,27 @@ bool TxExecutor::commit() {
 // トランザクションの操作
 
 Status TxExecutor::insert(Key &key, Value *value) {
+    // If the key already exists in write_sets_, return WARN_ALREADY_EXISTS.
     if (searchWriteSet(key)) return Status::WARN_ALREADY_EXISTS;
 
-    Value *found_value = Table.get(key);
+    // If the key already exists in masstree, return WARN_ALREADY_EXISTS.
+    Value *found_value = masstree.get_value(key);
     if (found_value != nullptr) return Status::WARN_ALREADY_EXISTS;
 
-    // searchWriteSetにもTableにも存在しない場合は、新規レコードを作成してwrite_set_に追加
-    found_value = value;
+    // absent bitが立っているvalueをMasstreeに挿入する
+    assert(value->tidword_.absent == true);
 
-    // TODO: masstreeのputはvoid関数だから、適切な箇所でStatusを保持させる必要がある
-    //       valueまで掘り下げて、valueがすでにセットされているならWARN_ALREADY_EXISTSを返すみたいな
-    // Status status = 
+    Status status = masstree.insert_value(key, value, gc_);
+    if (status == Status::WARN_ALREADY_EXISTS) {
+        // CHECK: ここでfreeしていいのか？
+        delete value;
+        return status;
+    }
+
+    // found_valueはnullptrだけどWriteElementのコンストラクタに一致するようにnullptrを渡しておく
+    write_set_.emplace_back(key, found_value, value, OpType::INSERT);
+
+    return Status::OK;
 }
 
 // TODO: delete implementation
@@ -73,7 +83,7 @@ Status TxExecutor::read(Key &key, Value *value) {
         goto FINISH_READ;
     }
 
-    found_value = Table.get(key);
+    found_value = masstree.get_value(key);
     if (found_value == nullptr) {
         return Status::WARN_NOT_FOUND;
     }
@@ -108,7 +118,7 @@ Status TxExecutor::write(Key &key, Value *value) {
     if (readElement) {
         found_value = readElement->value_;
     } else {
-        found_value = Table.get(key);
+        found_value = masstree.get_value(key);
         if (found_value == nullptr) return Status::WARN_NOT_FOUND;
     }
 

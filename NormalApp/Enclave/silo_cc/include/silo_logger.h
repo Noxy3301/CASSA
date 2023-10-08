@@ -47,7 +47,8 @@ class Logger {
         // Stats depoch_diff_;
         LoggerResult &logger_result_;
 
-        Logger(int i, Notifier &n, LoggerResult &myres) : thid_(i), notifier_stats_(n), logger_result_(myres) {}
+        Logger(int i, Notifier &n, LoggerResult &myres)
+            : thid_(i), notifier_stats_(n), logger_result_(myres) {}
 
         void add_tx_executor(TxExecutor &trans);
         void worker();

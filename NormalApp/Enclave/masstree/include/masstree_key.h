@@ -31,7 +31,7 @@ class Key {
         size_t cursor = 0;              // 現在のスライスの位置/インデックス
 
         Key(const std::string &key) {
-            std::pair<std::vector<uint64_t>, size_t> slices_lastSliceSize = stringToUint64t(key);
+            std::pair<std::vector<uint64_t>, size_t> slices_lastSliceSize = string_to_uint64t(key);
             slices = std::move(slices_lastSliceSize.first);
             lastSliceSize = slices_lastSliceSize.second;
             assert(1 <= lastSliceSize && lastSliceSize <= 8);
@@ -99,7 +99,7 @@ class Key {
             return lastSliceSize < right.lastSliceSize;
         }
 
-        std::pair<std::vector<uint64_t>, size_t> stringToUint64t(const std::string &key) {
+        std::pair<std::vector<uint64_t>, size_t> string_to_uint64t(const std::string &key) {
             std::vector<uint64_t> slices;
             size_t lastSliceSize = 0;
             size_t index = 0;
@@ -118,7 +118,7 @@ class Key {
             return std::make_pair(slices, lastSliceSize);
         }
 
-        std::string uint64tToString(const std::vector<uint64_t> &slices, size_t lastSliceSize) {
+        std::string uint64t_to_string(const std::vector<uint64_t> &slices, size_t lastSliceSize) {
             std::string result;
             // 最後のスライス以外の処理
             for (size_t i = 0; i < slices.size() - 1; i++) {

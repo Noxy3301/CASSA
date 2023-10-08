@@ -113,30 +113,41 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
         if (proc.has_value()) {
             // procedureをKey/Valueに展開する
             size_t txID = proc.value().txIDcounter_;
-            OpType opType = proc.value().ope_;
-            Key key(proc.value().key_);
-            Value *value = new Value(proc.value().value_);  // TODO: heapに確保しているから適切なタイミングでdeleteする必要がある
-
-            // std::cout << "\r";
-            // std::cout << "worker_thid = " << worker_thid << std::endl;
-            // std::cout << "opType = " << static_cast<int>(opType) << std::endl;
-            // std::cout << "key = " << proc.value().key_ << std::endl;
-            // std::cout << "value = " << proc.value().value_ << std::endl;
+            // OpType opType = proc.value().ope_;
+            // Key key(proc.value().key_);
+            // Value *value = new Value(proc.value().value_);  // TODO: heapに確保しているから適切なタイミングでdeleteする必要がある
 
             // procedureを実行する
-            // TODO: 複数のprocedureをまとめて実行するようにする、すなわちpro_set_に登録して、一括で実行する
             trans.begin();
+            // TODO: 複数のprocedureをまとめて実行するようにする、すなわちpro_set_に登録して、一括で実行する
+
+            Status status = Status::OK;
+            OpType opType = proc.value().ope_;
+            std::string key = proc.value().key_;
+            std::string value = proc.value().value_;
+
             switch (opType) {
                 case OpType::INSERT:
-                    // insert recordはabsent bitを立てて見えないようにする
-                    value->tidword_.absent = true;
-                    trans.insert(key, value);
+                    status = trans.insert(key, value);
+                    if (status == Status::WARN_ALREADY_EXISTS) {
+                        std::cout << "[ WARN     ] " << "key: " << key << " is already exists" << std::endl;
+                        // TODO: transaction abort
+                    }
                     break;
                 case OpType::READ:
-                    trans.read(key, value); // TODO: readでvalue???
+                    // TODO: 恐らくrmvでreadで取得したValueを使うはずだから渡せるように用意する
+                    trans.read(key);
+                    if (status == Status::WARN_NOT_FOUND) {
+                        std::cout << "[ WARN     ] " << "key: " << key << " is not found" << std::endl;
+                        // TODO: transaction abort
+                    }
                     break;
                 case OpType::WRITE:
                     trans.write(key, value);
+                    if (status == Status::WARN_NOT_FOUND) {
+                        std::cout << "[ WARN     ] " << "key: " << key << " is not found" << std::endl;
+                        // TODO: transaction abort
+                    }
                     break;
                 // case OpType::RMW:
                 //     trans.rmw(key, value);

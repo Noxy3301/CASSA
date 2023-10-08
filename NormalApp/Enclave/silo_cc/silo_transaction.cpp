@@ -15,7 +15,7 @@ void TxExecutor::abort() {
     for (auto &we : write_set_) {
         if (we.op_ == OpType::INSERT) {
             masstree.remove_value(we.key_, gc_);
-            delete we.get_new_value();
+            delete we.value_;  // insertでwrite_set_に作成したvalue_を渡しているのでここでdeleteできる
         }
     }
 
@@ -34,7 +34,9 @@ bool TxExecutor::commit() {
 
 // トランザクションの操作
 
-Status TxExecutor::insert(Key &key, Value *value) {
+Status TxExecutor::insert(std::string &str_key, std::string &str_value) {
+    Key key(str_key);
+
     // If the key already exists in write_sets_, return WARN_ALREADY_EXISTS.
     if (searchWriteSet(key)) return Status::WARN_ALREADY_EXISTS;
 
@@ -42,18 +44,19 @@ Status TxExecutor::insert(Key &key, Value *value) {
     Value *found_value = masstree.get_value(key);
     if (found_value != nullptr) return Status::WARN_ALREADY_EXISTS;
 
-    // absent bitが立っているvalueをMasstreeに挿入する
-    assert(value->tidword_.absent == true);
+    // absent bitが立っているvalueを作成して、Masstreeに挿入する
+    Value *value = new Value(str_value);
+    value->tidword_.absent = true;
 
     Status status = masstree.insert_value(key, value, gc_);
     if (status == Status::WARN_ALREADY_EXISTS) {
-        // CHECK: ここでfreeしていいのか？
         delete value;
         return status;
     }
 
-    // found_valueはnullptrだけどWriteElementのコンストラクタに一致するようにnullptrを渡しておく
-    write_set_.emplace_back(key, found_value, value, OpType::INSERT);
+    // write_set_は指定したvalueのbody_(std::string)をstr_valueで更新する
+    // insertの場合、value->body_ == str_valueだけど、write_set_の形式に合わせることで、writePhase()での処理を共通化してる
+    write_set_.emplace_back(key, value, str_value, OpType::INSERT);
 
     return Status::OK;
 }
@@ -61,25 +64,25 @@ Status TxExecutor::insert(Key &key, Value *value) {
 // TODO: delete implementation
 // void TxExecutor::tx_delete(Key &key) {}
 
-Status TxExecutor::read(Key &key, Value *value) {
+Status TxExecutor::read(std::string &str_key) {
     // Place variables before the first goto instruction to avoid "crosses initialization of ..." error under -fpermissive.
+    Key key(str_key);
+    Value *found_value; // TODO: found_valueを返すべきか？
+
     TIDword expected, check;
     Status status;
     ReadElement *readElement;
     WriteElement *writeElement;
-    Value *found_value;
 
     // read-own-writes or re-read from local read set
     readElement = searchReadSet(key);
     if (readElement) {
-        // copy value from read set
-        value = readElement->value_;
+        found_value = readElement->value_;  // copy value from read set
         goto FINISH_READ;
     }
     writeElement = searchWriteSet(key);
     if (writeElement) {
-        // copy value from write set
-        value = writeElement->value_;
+        found_value = writeElement->value_; // copy value from write set
         goto FINISH_READ;
     }
 
@@ -91,9 +94,49 @@ Status TxExecutor::read(Key &key, Value *value) {
     if (status != Status::OK) {
         return status;
     }
-    value = readElement->value_;
+
+    found_value = readElement->value_;
 
 FINISH_READ:
+    return Status::OK;
+}
+
+// read_set_に追加する前に、直前のreadで取得したvalueが変更されていないかを確認する
+Status TxExecutor::read_internal(Key &key, Value *value) {
+    TIDword expected, check;
+
+    // (a) reads the TID word, spinning until the lock is clear
+    expected.obj_ = loadAcquire(value->tidword_.obj_);
+    
+    // check if it is locked.
+    // spinning until the lock is clear
+    for (;;) {
+        while (expected.lock) {
+            expected.obj_ = loadAcquire(value->tidword_.obj_);
+        }
+
+        // (b) checks whether the record is the latest version
+        //     - omit. because this is implemented by single version
+
+        if (expected.absent) {
+            return Status::WARN_NOT_FOUND;
+        }
+
+        // (c) reads the data
+        //     - since value is already a pointer to Value, you don’t need to do anything special here to read the data.
+
+        // (d) performs a memory fence
+        //     - don't need, order of load don't exchange.
+
+        // (e) checks the TID word again
+        check.obj_ = loadAcquire(value->tidword_.obj_);
+        if (expected == check) {
+            break;
+        }
+        expected = check;
+    }
+
+    read_set_.emplace_back(key, value, expected);
     return Status::OK;
 }
 
@@ -107,8 +150,9 @@ FINISH_READ:
  * 
  * @note In this implementation, records are registered in TxExecutor's write_set_, and during the commit phase, the records are updated based on the information in write_set_
  */
-Status TxExecutor::write(Key &key, Value *value) {
+Status TxExecutor::write(std::string &str_key, std::string &str_value) {
     // Place variables before the first goto instruction to avoid "crosses initialization of ..." error under -fpermissive.
+    Key key(str_key);
     Value *found_value;
     ReadElement *readElement;
 
@@ -122,7 +166,7 @@ Status TxExecutor::write(Key &key, Value *value) {
         if (found_value == nullptr) return Status::WARN_NOT_FOUND;
     }
 
-    write_set_.emplace_back(key, found_value, value, OpType::WRITE);
+    write_set_.emplace_back(key, found_value, str_value, OpType::WRITE);
 
 FINISH_WRITE:
     return Status::OK;
@@ -273,7 +317,7 @@ void TxExecutor::writePhase() {
         // update and unlock
         switch ((*itr).op_) {
             case OpType::WRITE:
-                itr->value_->body_ = itr->get_new_value()->body_;    // update "value_.body_" using "get_new_value().body_"
+                itr->value_->body_ = itr->get_new_value_body();
                 storeRelease(itr->value_->tidword_.obj_, maxtid.obj_);
                 break;
             case OpType::INSERT:
@@ -364,47 +408,6 @@ void TxExecutor::durableEpochWork(uint64_t &epoch_timer_start, uint64_t &epoch_t
 
     // [NOTE] The following line, currently commented out, would calculate and store the wait latency.
     // sres_lg_->local_wait_depoch_latency_ += rdtscp() - t;
-}
-
-// 内部処理とヘルパーメソッド
-
-// read_set_に追加する前に、直前のreadで取得したvalueが変更されていないかを確認する
-Status TxExecutor::read_internal(Key &key, Value *value) {
-    TIDword expected, check;
-
-    // (a) reads the TID word, spinning until the lock is clear
-    expected.obj_ = loadAcquire(value->tidword_.obj_);
-    
-    // check if it is locked.
-    // spinning until the lock is clear
-    for (;;) {
-        while (expected.lock) {
-            expected.obj_ = loadAcquire(value->tidword_.obj_);
-        }
-
-        // (b) checks whether the record is the latest version
-        //     - omit. because this is implemented by single version
-
-        if (expected.absent) {
-            return Status::WARN_NOT_FOUND;
-        }
-
-        // (c) reads the data
-        //     - since value is already a pointer to Value, you don’t need to do anything special here to read the data.
-
-        // (d) performs a memory fence
-        //     - don't need, order of load don't exchange.
-
-        // (e) checks the TID word again
-        check.obj_ = loadAcquire(value->tidword_.obj_);
-        if (expected == check) {
-            break;
-        }
-        expected = check;
-    }
-
-    read_set_.emplace_back(key, value, expected);
-    return Status::OK;
 }
 
 ReadElement* TxExecutor::searchReadSet(Key& key) {

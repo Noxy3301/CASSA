@@ -19,7 +19,8 @@ class ReadElement : public OpElement {
 public:
     using OpElement::OpElement;
 
-    ReadElement(const Key &key, Value *value, const TIDword &tidword, OpType op = OpType::READ) // ReadElementではOpTypeを使わないからREADにしているけどこれでいいのか？
+    ReadElement(const Key &key, Value *value, 
+                const TIDword &tidword, OpType op = OpType::READ)
         : OpElement(key, value, op), tidword_(tidword) {}
 
     TIDword get_tidword() const {
@@ -38,11 +39,12 @@ class WriteElement : public OpElement {
 public:
     using OpElement::OpElement;
 
-    WriteElement(const Key &key, Value *old_value, Value *new_value, OpType op)
-        : OpElement(key, old_value, op), new_value_(new_value) {}
+    WriteElement(const Key &key, Value *value, 
+                 std::string new_value_body, OpType op)
+        : OpElement(key, value, op), new_value_body_(new_value_body) {}
 
-    Value* get_new_value() const {
-        return new_value_;
+    std::string get_new_value_body() const {
+        return new_value_body_;
     }
 
     bool operator<(const WriteElement &right) const {
@@ -50,5 +52,5 @@ public:
     }
 
 private:
-    Value *new_value_;
+    std::string new_value_body_;
 };

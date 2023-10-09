@@ -24,12 +24,9 @@ inline void atomicAddGE() {
     expected = atomicLoadGE();
     for (;;) {
         desired = expected + 1;
-        if (__atomic_compare_exchange_n(&(GlobalEpoch), &expected, desired, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQ_REL)) break;
+        if (__atomic_compare_exchange_n(&(GlobalEpoch), &expected, desired, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) break;
     }
 }
-
-
-
 
 /**
  * @brief 2つのタイムスタンプの差が指定された閾値より大きいかどうかを確認する

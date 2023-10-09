@@ -252,6 +252,8 @@ size_t split_point(uint64_t new_slice, const std::vector<std::pair<uint64_t, siz
         assert(new_slice > max_slice);
         return 15;
     }
+    assert(false);
+    return 0;
 }
 
 // BorderNodeのnodeを分割してnode1を作成する

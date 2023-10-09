@@ -124,6 +124,7 @@ Status TxExecutor::read_internal(Key &key, Value *value) {
 
         // (c) reads the data
         //     - since value is already a pointer to Value, you don’t need to do anything special here to read the data.
+        // TODO: value.body_を取得するならここ？
 
         // (d) performs a memory fence
         //     - don't need, order of load don't exchange.

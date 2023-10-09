@@ -26,11 +26,11 @@
 // Thread configurations
 // -------------------
 // The number of worker threads.
-#define WORKER_NUM 9
+#define WORKER_NUM 2
 // The number of logger threads.
 // Note: It is recommended to set the number of logger threads (LOGGER_NUM) to be less than the number of worker threads (WORKER_NUM).
 //       Ideally, WORKER_NUM should be an integer multiple of LOGGER_NUM.
-#define LOGGER_NUM 3
+#define LOGGER_NUM 1
 
 // -------------------
 // Buffer configurations

@@ -169,7 +169,7 @@ void Logger::worker() {
         wait_latency_ += rdtscp() - t;
         logging(false);
     }
-    logging(true);  // Q:Logger::loggingにfalse投げたりtrue投げたり何してんねんまじで
+    logging(true);
 
     // Logger終わったンゴ連絡
     notifier_stats_.logger_end(this);

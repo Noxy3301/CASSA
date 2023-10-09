@@ -12,7 +12,7 @@ void LogBuffer::push(std::uint64_t tid, NotificationId &nid, std::vector<WriteEl
     for (auto &itr : write_set) {
         std::string key = itr.key_.uint64t_to_string(itr.key_.slices, itr.key_.lastSliceSize);
         std::string val = itr.get_new_value_body();
-        log_set_.emplace_back(tid, static_cast<uint8_t>(itr.op_), key, val);
+        log_set_.emplace_back(tid, itr.op_, key, val);
         log_set_size_++;
     }
     nid_set_.emplace_back(nid);
@@ -59,7 +59,7 @@ std::string LogBuffer::create_json_log() {
     // NOTE: 本来はlocal_durable_epochをログと一緒に書き出す必要があるけど、pepochで別に書き出しているので省略
     json += "\"log_header\": {";
     json += "\"check_sum\": " + std::to_string(check_sum) + ",";
-    json += "\"log_record_num\": " + std::to_string(log_set_.size()) + ",";
+    json += "\"log_record_num\": " + std::to_string(log_set_.size());
     json += "},";
 
     // create log_set
@@ -67,7 +67,7 @@ std::string LogBuffer::create_json_log() {
     for (size_t i = 0; i < log_set_.size(); i++) {
         json += "{";
         json += "\"tid\": " + std::to_string(log_set_[i].tid_) + ",";
-        json += "\"op_type\": " + std::to_string(log_set_[i].op_type_) + ",";
+        json += "\"op_type\": \"" + OpType_to_string(log_set_[i].op_type_) + "\",";
         json += "\"key\": \"" + log_set_[i].key_ + "\",";
         json += "\"val\": \"" + log_set_[i].value_ + "\"";
         json += "}";
@@ -81,6 +81,21 @@ std::string LogBuffer::create_json_log() {
     return json;
 }
 
+std::string LogBuffer::OpType_to_string(OpType op_type) {
+    switch (op_type) {
+        case OpType::NONE:   return "NONE";
+        case OpType::READ:   return "READ";
+        case OpType::WRITE:  return "WRITE";
+        case OpType::INSERT: return "INSERT";
+        case OpType::DELETE: return "DELETE";
+        case OpType::SCAN:   return "SCAN";
+        case OpType::RMW:    return "RMW";
+        default:
+            assert(false);
+            return "";
+    }
+}
+
 /**
  * @brief Writes the log records in the buffer to the log file.
  * 
@@ -92,6 +107,7 @@ void LogBuffer::write(PosixWriter &logfile, size_t &byte_count) {
 
     // create json format of logs
     std::string json_log = create_json_log();
+    std::cout << json_log << std::endl;
     logfile.write((void*)json_log.data(), json_log.size());
 
     // clear for next transactions

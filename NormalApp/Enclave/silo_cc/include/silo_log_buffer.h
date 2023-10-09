@@ -38,6 +38,7 @@ public:
     void return_buffer();
     bool empty();
     std::string create_json_log();
+    std::string OpType_to_string(OpType op_type);
 
     void write(PosixWriter &logfile, size_t &byte_count);
 

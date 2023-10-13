@@ -92,5 +92,4 @@ public:
     // 内部処理とヘルパーメソッド
     ReadElement *searchReadSet(Key &key); // 読み取りセットの検索
     WriteElement *searchWriteSet(Key &key); // 書き込みセットの検索
-    bool pauseCondition(); // 一時停止条件の確認
 };

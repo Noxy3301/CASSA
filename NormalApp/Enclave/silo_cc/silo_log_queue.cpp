@@ -1,8 +1,8 @@
 #include "include/silo_log_queue.h"
 
 LogQueue::LogQueue() {
-    my_mutex_.store(0);
     quit_.store(false);
+    data_added_.store(false);
     // timeout_ = std::chrono::microseconds((int)(EPOCH_TIME*1000));
     timeout_us_ = (int)EPOCH_TIME*1000;
 }
@@ -31,12 +31,15 @@ LogQueue::LogQueue() {
  */
 void LogQueue::enq(LogBuffer* x) {
     {
+        // std::cout << "enq try to get lock" << std::endl;
         std::lock_guard<std::mutex> lock(mutex_);
+        // std::cout << "enq start" << std::endl;
         auto &v = queue_[x->min_epoch_];
         v.emplace_back(x);
+        data_added_.store(true);
+        // std::cout << "data_added_.store(true)" << std::endl;
+        // std::cout << "enq end" << std::endl;
     }
-    logging_unlock();   // TODO: remove this line and uncomment the following line
-    // cv_deq_.notify_one();
 }
 
 /**
@@ -50,21 +53,26 @@ void LogQueue::enq(LogBuffer* x) {
  * false if the operation times out.
  */
 bool LogQueue::wait_deq() {
-    if (quit_.load() || !queue_.empty()) return true;
+    uint64_t start_time = rdtscp();
+    uint64_t elapsed_time = 0;
+    uint64_t timeout_cycles = timeout_us_ * CLOCKS_PER_US;
 
-    std::unique_lock<std::mutex> lock(mutex_);  // CHECK: これcv_deqで使ってるやつだっけ？
-    unsigned int expected = 0;
-    uint64_t wait_start = rdtscp();
-    uint64_t wait_current = rdtscp();
-
-    while (wait_current - wait_start < timeout_us_ * CLOCKS_PER_US) {   // timeoutしていないなら
+    // cv_deq_.wait_for(lock, timeout_us_, [this]{return quit_.load() || !queue_.empty();}); を自前で実装
+    while (true) {
+        // 終了条件
         if (quit_.load() || !queue_.empty()) return true;
-        if (logging_status_mutex_.compare_exchange_strong(expected, 1)) return true;    // loggerがloggingできる状態であるかをCASでlockを試みつつ確認
-        wait_current = rdtscp();
-    }
 
-    return false;
-    // return cv_deq_.wait_for(lock, timeout_us_, [this]{return quit_.load() || !queue_.empty();});
+        // タイムアウト
+        elapsed_time = rdtscp() - start_time;
+        if (elapsed_time > timeout_cycles) return false;
+        // LogQueue::enq()によってデータが追加されたかどうか(notify_one()の代わり)
+        if (data_added_.load()) {
+            if (quit_.load() || !queue_.empty()) {
+                data_added_.store(false);
+                return true;
+            }
+        }
+    }
 }
 
 /**
@@ -157,48 +165,5 @@ uint64_t LogQueue::min_epoch() {
  */
 void LogQueue::terminate() {
     quit_.store(true);
-    logging_unlock();
-    // cv_deq_.notify_all();
-}
-
-/**
- * @brief Acquires a lock on `my_mutex_`.
- */
-void LogQueue::my_lock() {
-    for (;;) {
-        unsigned int lock = 0;  // expectedとして使う
-        if (my_mutex_.compare_exchange_strong(lock, 1)) return;
-        waitTime_ns(30);
-    }
-}
-
-/**
- * @brief Releases the lock on `my_mutex_`.
- */
-void LogQueue::my_unlock() {
-    my_mutex_.store(0);
-}
-
-/**
- * @brief Acquires a lock on `logging_status_mutex_`.
- * 
- * @note This function is slated for removal in future releases due to the 
- * availability of `condition_variable`'s `notify_one()` in SGX SDK v2.17 and onwards.
- */
-void LogQueue::logging_lock() {
-    for (;;) {
-        unsigned int lock = 0;
-        if (logging_status_mutex_.compare_exchange_strong(lock, 1)) return;
-        waitTime_ns(30);
-    }
-}
-
-/**
- * @brief Releases the lock on `logging_status_mutex_`.
- * 
- * @note This function is slated for removal in future releases due to the 
- * availability of `condition_variable`'s `notify_one()` in SGX SDK v2.17 and onwards.
- */
-void LogQueue::logging_unlock() {
-    logging_status_mutex_.store(0);
+    data_added_.store(true);    // TODO: 元々notify_all()があった場所なんだけど、これで十分か？
 }

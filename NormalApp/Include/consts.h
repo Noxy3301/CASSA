@@ -39,8 +39,8 @@
 #define BUFFER_NUM 2
 // The maximum number of log entries that can be buffered before triggering a publish.
 #define MAX_BUFFERED_LOG_ENTRIES 1000
-// The epoch difference (used for adjusting epoch-based mechanisms, but not used in this implementation).
-#define EPOCH_DIFF 0
+// The epoch difference.
+#define EPOCH_DIFF 1
 
 // -------------------
 // Cache line size configurations

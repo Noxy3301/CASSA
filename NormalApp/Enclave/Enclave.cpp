@@ -104,7 +104,7 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
         waitTime_ns(100);
 
     RETRY:
-        if (worker_thid == 0) trans.leaderWork();
+        // if (worker_thid == 0) trans.leaderWork();
         trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, db_quit);
 
         if (__atomic_load_n(&db_quit, __ATOMIC_ACQUIRE)) break;
@@ -171,7 +171,7 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
                 storeRelease(myres.local_commit_count_, loadAcquire(myres.local_commit_count_) + 1);
                 // std::cout << "this transaction has been committed" << std::endl;
                 // cv.notify_one();
-                ocall_print_commit_message(txID, 0);
+                ocall_print_commit_message(txID, worker_thid);
             } else {
                 trans.abort();
                 goto RETRY;

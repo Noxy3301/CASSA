@@ -56,7 +56,6 @@ class LogBufferPool {
 public:
     LogQueue *queue_;
     std::mutex mutex_;
-    std::condition_variable cv_deq_;
     std::vector<LogBuffer> buffer_;
     std::vector<LogBuffer*> pool_;
     LogBuffer *current_buffer_;

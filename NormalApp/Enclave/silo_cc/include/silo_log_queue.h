@@ -21,20 +21,11 @@ public:
     void terminate();
 
 private:
-    std::atomic<unsigned int> my_mutex_;
-    std::atomic<unsigned int> logging_status_mutex_;    // condition_variableの代用
+    std::atomic<bool> data_added_; // condition_variableの代用
     std::mutex mutex_;
-    std::condition_variable cv_deq_;
     std::map<uint64_t, std::vector<LogBuffer*>> queue_; // epoch : [log_buffer1, log_buffer2, ...]
     std::size_t capacity_ = 1000;
     std::atomic<bool> quit_;
     // std::chrono::microseconds timeout_;
     int timeout_us_;
-
-    void my_lock();
-    void my_unlock();
-
-    // TODO: SGXSDK v2.17からcondition_variable::notifity_one()が使えるようになったので消す
-    void logging_lock();
-    void logging_unlock();
 };

@@ -381,19 +381,16 @@ void TxExecutor::epochWork(uint64_t &epoch_timer_start, uint64_t &epoch_timer_st
 }
 
 void TxExecutor::durableEpochWork(uint64_t &epoch_timer_start, uint64_t &epoch_timer_stop, const bool &quit) {
-    // Capture the initial timestamp.
-    std::uint64_t t = rdtscp();
+    uint64_t old_thread_local_epoch = loadAcquire(ThLocalEpoch[worker_thid_]);
+    epochWork(epoch_timer_start, epoch_timer_stop); // NOTE: GEの更新条件が全てのWorkerが現在のGEを読み込んでいないといけないので、ここで同期をとる
+    uint64_t new_thread_local_epoch = loadAcquire(ThLocalEpoch[worker_thid_]);
 
-    // If EPOCH_DIFF is positive, pause this worker until the Durable epoch catches up.
-    if (EPOCH_DIFF > 0) {
-        // If pauseCondition is true, publish the log buffer and perform epoch work until pauseCondition is false.
-        if (pauseCondition()) {
+    // If the thread local epoch has changed, it means that current_buffer should be published.
+    if (old_thread_local_epoch != new_thread_local_epoch) {
+        // If current_buffer has contents, publish it.
+        if (log_buffer_pool_.current_buffer_->log_set_size_ != 0) {
+            // Publish the log buffer.
             log_buffer_pool_.publish();
-            do {
-                epochWork(epoch_timer_start, epoch_timer_stop);
-                // If quit is true, exit the function early.
-                if (loadAcquire(quit)) return;
-            } while (pauseCondition());
         }
     }
 
@@ -423,9 +420,4 @@ WriteElement *TxExecutor::searchWriteSet(Key &key) {
         if (we.key_ == key) return &we;
     }
     return nullptr;
-}
-
-bool TxExecutor::pauseCondition() {
-    auto dlepoch = loadAcquire(ThLocalDurableEpoch[logger_thid_]);
-    return loadAcquire(ThLocalEpoch[worker_thid_]) > dlepoch + EPOCH_DIFF;
 }

@@ -240,8 +240,6 @@ void LogBufferPool::return_buffer(LogBuffer *lb) {
     my_lock();
     pool_.emplace_back(lb);
     my_unlock();
-
-    cv_deq_.notify_one();
 }
 
 /**

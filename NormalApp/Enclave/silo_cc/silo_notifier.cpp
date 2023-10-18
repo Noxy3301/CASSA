@@ -8,6 +8,11 @@
 #include "../global_variables.h"
 #include "include/silo_logger.h"
 
+/**
+ * @brief Opens and maps a file to memory.
+ * 
+ * @note O_CREAT is used to create a new file if it does not exist. O_TRUNC is used to truncate the file to zero length
+ */
 void PepochFile::open() {
     fd_ = ::open(file_name_.c_str(), O_CREAT|O_TRUNC|O_RDWR, 0644);
     if (fd_ == -1) {    // fd_は失敗したら-1になる(初期値も-1だけど何かしらの要因で事故ったらここに落ち着く)
@@ -27,23 +32,115 @@ void PepochFile::open() {
     }
 }
 
+/**
+ * @brief Writes the (durable) epoch to the file.
+ * 
+ * @param epoch The epoch to write.
+ */
 void PepochFile::write(std::uint64_t epoch) {
     *addr_ = epoch;
     ::msync(addr_, sizeof(std::uint64_t), MS_SYNC);
 }
 
+/**
+ * @brief Closes the file which stores the (durable) epoch.
+ */
 void PepochFile::close() {
     ::munmap(addr_, sizeof(std::uint64_t));
     ::close(fd_);
     fd_ = -1;
 }
 
+
+
+NidBuffer::NidBuffer() {
+    front_ = end_ = new NidBufferItem(0);
+}
+
+NidBuffer::~NidBuffer() {
+    auto itr = front_;
+    while (itr != nullptr) {
+        auto next = itr->next_;
+        delete itr;
+        itr = next;
+    }
+}
+
+// NOTE: NotifyStatsはデータ取得用なので削除
+void NidBuffer::notify(std::uint64_t min_dl) {
+    if (front_ == NULL) return;
+
+    NidBufferItem *orig_front = front_;
+    while (front_->epoch_ <= min_dl) {
+        printf("front_->epoch_=%lu min_dl=%lu\n", front_->epoch_, min_dl);
+        for (auto &nid : front_->buffer_) {
+            // notify client here
+            // TODO: 仕様を理解してこっちでnotifyするようにする
+        }
+
+        // clear buffer
+        size_t n = front_->buffer_.size();
+        size_ -= n;
+        front_->buffer_.clear();
+        if (front_->next_ == NULL) break;
+
+        // recycle buffer
+        front_->epoch_ = end_->epoch_ + 1;
+        end_->next_ = front_;
+        end_ = front_;
+        front_ = front_->next_;
+        end_->next_ = NULL;
+        if (front_ == orig_front) break;
+    }
+}
+
+// TODO: 仕様理解、あとnewを使っているからできれば回避したい
+void NidBuffer::store(std::vector<NotificationId> &nid_buffer, std::uint64_t epoch) {
+    NidBufferItem *itr = front_;
+    while (itr->epoch_ < epoch) {
+        if (itr->next_ == NULL) {
+            // create buffer
+            itr->next_ = end_ = new NidBufferItem(epoch);
+            if (max_epoch_ < epoch) max_epoch_ = epoch;
+            //printf("create end_=%lx end_->next_=%lx end_->epoch_=%lu epoch=%lu max_epoch_=%lu\n",(uint64_t)end_,(uint64_t)end_->next_, end_->epoch_, epoch, max_epoch_);
+        }
+        itr = itr->next_;
+    }
+    // assert(itr->epoch == epoch);
+    std::copy(nid_buffer.begin(), nid_buffer.end(), std::back_inserter(itr->buffer_));
+    size_ += nid_buffer.size();
+}
+
+
+
+Notifier::Notifier() {
+    start_clock_ = rdtscp();
+    pepoch_file_.open();
+}
+
+void Notifier::logger_end(Logger *logger) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    logger_set_.erase(logger);
+}
+
+/**
+ * @brief Adds a logger to the logger set.
+ */
 void Notifier::add_logger(Logger *logger) {
     std::unique_lock<std::mutex> lock(mutex_);
     logger_set_.emplace(logger);
 }
 
-// TODO:コピペなので要理解
+/**
+ * @brief Checks and updates the durable epoch.
+ * 
+ * @return The minimum durable epoch.
+ * 
+ * @details
+ * Calculates the minimum durable epoch across all threads and updates the 
+ * global durable epoch if necessary. It also writes the updated durable epoch
+ * to a file for persistence.
+ */
 uint64_t Notifier::check_durable() {
     // calculate min(d_l)
     uint64_t min_dl = __atomic_load_n(&(ThLocalDurableEpoch[0]), __ATOMIC_ACQUIRE);
@@ -53,120 +150,37 @@ uint64_t Notifier::check_durable() {
             min_dl = dl;
         }
     }
-    uint64_t d = __atomic_load_n(&(DurableEpoch), __ATOMIC_ACQUIRE);
-    if (d < min_dl) {
-        bool b = __atomic_compare_exchange_n(&(DurableEpoch), &d, min_dl, false, __ATOMIC_RELEASE, __ATOMIC_ACQUIRE);
-        if (b) {
-            // store Durable Epoch
+
+    // load and update durable epoch if necessary
+    uint64_t dl = __atomic_load_n(&(DurableEpoch), __ATOMIC_ACQUIRE);
+    if (dl < min_dl) {
+        bool cas_success = __atomic_compare_exchange_n(&(DurableEpoch), &dl, min_dl, false, __ATOMIC_RELEASE, __ATOMIC_ACQUIRE);
+        if (cas_success) {
+            // store durable epoch
             pepoch_file_.write(min_dl);
-            // TODO: ocall_countの計測を残すかどうか
-            // int expected = ocall_count.load();
-            // while (!ocall_count.compare_exchange_weak(expected, expected + 1));
         }
     }
+
     return min_dl;
 }
 
-// // TODO:コピペなので要理解
+/**
+ * @brief Makes the current notification buffer durable and notifies the client.
+ * 
+ * @param nid_buffer Notification ID buffer containing epoch information.
+ * @param quit Boolean flag to indicate whether to terminate the operation.
+ * 
+ * @details
+ * Checks the durability of epochs and compares the minimum durable epoch with 
+ * the minimum epoch in the nid_buffer.
+ * If suitable for notification, it notifies the client with either the minimum
+ * durable epoch or a termination signal based on the `quit` flag.
+ */
 void Notifier::make_durable(NidBuffer &nid_buffer, bool quit) {
-    __atomic_fetch_add(&try_count_, 1, __ATOMIC_ACQ_REL);
     auto min_dl = check_durable();
     if (nid_buffer.min_epoch() > min_dl) return;
+
     // notify client
-    // NotifyStatsを使っていないので省略
+    uint64_t epoch = (quit) ? (~(uint64_t)0) : min_dl;
+    nid_buffer.notify(epoch);
 }
-
-// // TODO:コピペなので要理解
-// void NidBuffer::notify(std::uint64_t min_dl, NotifyStats &stats) {
-//   if (front_ == NULL) return;
-//   stats.notify_count_ ++;
-//   NidBufferItem *orig_front = front_;
-//   while (front_->epoch_ <= min_dl) {
-//     //printf("front_->epoch_=%lu min_dl=%lu\n",front_->epoch_,min_dl);
-//     std::uint64_t ltc = 0;
-//     std::uint64_t ntf_ltc = 0;
-//     std::uint64_t min_ltc = ~(uint64_t)0;
-//     std::uint64_t max_ltc = 0;
-//     std::uint64_t t = rdtscp();
-//     for (auto &nid : front_->buffer_) {
-//       // notify client here
-//       std::uint64_t dt = t - nid.tx_start_;
-//       stats.sample_hist(dt);
-//       ltc += dt;
-//       if (dt < min_ltc) min_ltc = dt;
-//       if (dt > max_ltc) max_ltc = dt;
-//       ntf_ltc += t - nid.t_mid_;
-//     }
-//     stats.latency_ += ltc;
-//     stats.notify_latency_ += ntf_ltc;
-//     if (min_ltc < stats.min_latency_) stats.min_latency_ = min_ltc;
-//     if (max_ltc > stats.max_latency_) stats.max_latency_ = max_ltc;
-//     if (min_dl != ~(uint64_t)0)
-//       stats.epoch_diff_ += min_dl - front_->epoch_;
-//     stats.epoch_count_ ++;
-//     std::size_t n = front_->buffer_.size();
-//     stats.count_ += n;
-//     // clear buffer
-//     size_ -= n;
-//     front_->buffer_.clear();
-//     if (front_->next_ == NULL) break;
-//     // recycle buffer
-//     front_->epoch_ = end_->epoch_ + 1;
-//     end_->next_ = front_;
-//     end_ = front_;
-//     front_ = front_->next_;
-//     end_->next_ = NULL;
-//     if (front_ == orig_front) break;
-//   }
-// }
-
-// // TODO:コピペなので要理解
-// void NidBuffer::store(std::vector<NotificationId> &nid_buffer, std::uint64_t epoch) {
-//   NidBufferItem *itr = front_;
-//   while (itr->epoch_ < epoch) {
-//     if (itr->next_ == NULL) {
-//       // create buffer
-//       itr->next_ = end_ = new NidBufferItem(epoch);
-//       if (max_epoch_ < epoch) max_epoch_ = epoch;
-//       //printf("create end_=%lx end_->next_=%lx end_->epoch_=%lu epoch=%lu max_epoch_=%lu\n",(uint64_t)end_,(uint64_t)end_->next_, end_->epoch_, epoch, max_epoch_);
-//     }
-//     itr = itr->next_;
-//   }
-//   // assert(itr->epoch == epoch);
-//   std::copy(nid_buffer.begin(), nid_buffer.end(), std::back_inserter(itr->buffer_));
-//   size_ += nid_buffer.size();
-// }
-
-
-
-
-void Notifier::logger_end(Logger *logger) {
-    std::unique_lock<std::mutex> lock(mutex_);
-
-    byte_count_ += logger->byte_count_;
-    write_count_ += logger->write_count_;
-    buffer_count_ += logger->buffer_count_;
-    write_latency_ += logger->write_latency_;
-    wait_latency_ += logger->wait_latency_;
-    throughput_ += (double)logger->byte_count_/logger->write_latency_;
-
-    logger_set_.erase(logger);
-}
-
-// void Notifier::display() {
-//     double cps = CLOCKS_PER_US*1e6;
-//     size_t n = LOGGER_NUM;
-//     std::cout << "wait_time[s]:\t"  << wait_latency_/cps  << std::endl;
-//     std::cout << "write_time[s]:\t" << write_latency_/cps << std::endl;
-//     std::cout << "write_count:\t"   << write_count_       << std::endl;
-//     std::cout << "byte_count[B]:\t" << byte_count_        << std::endl;
-//     std::cout << "buffer_count:\t"  << buffer_count_      << std::endl;
-
-//     std::cout << "throughput(thread_sum)[B/s]:\t" << throughput_*cps                           << std::endl;
-//     std::cout << "throughput(byte_sum)[B/s]:\t"   << cps*byte_count_/write_latency_*n          << std::endl;
-//     std::cout << "throughput(elap)[B/s]:\t"       << cps*byte_count_/(write_end_-write_start_) << std::endl;
-
-//     std::cout << "try_count:\t"     << try_count_ << std::endl; // make_durable未実装なので使えないけどこれ何意味している？
-//     uint64_t d = __atomic_load_n(&(DurableEpoch), __ATOMIC_ACQUIRE);
-//     std::cout << "durable_epoch:\t" << d << std::endl;          // これもcheck_durable未実装なので使えません
-// }

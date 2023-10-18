@@ -84,9 +84,9 @@ void NidBuffer::notify(std::uint64_t min_dl) {
             // notify client here
             nid.tx_commit_time_ = rdtscp();
             std::cout << "id: " << nid.id_ << ", "
-                      << "thread_id: " << nid.thread_id_ << ", "
-                      << "tx process time: " << nid.tx_logging_time_ - nid.tx_start_time_ << ", "
-                      << "tx execution time" << nid.tx_commit_time_ - nid.tx_start_time_ << std::endl;
+                      << "thread_id: "         << nid.thread_id_ << ", "
+                      << "tx process time: "   << (nid.tx_logging_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000) << "ms, "
+                      << "tx execution time: " << (nid.tx_commit_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)  << "ms" << std::endl;
         }
 
         // clear buffer

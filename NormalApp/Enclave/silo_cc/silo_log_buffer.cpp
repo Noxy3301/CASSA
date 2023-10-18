@@ -21,11 +21,8 @@ void LogBuffer::push(std::uint64_t tid, NotificationId &nid, std::vector<WriteEl
     TIDword tidw;
     tidw.obj_ = tid;
     std::uint64_t epoch = tidw.epoch;
-    std::cout << this << std::endl;
-    std::cout << "before: min_epoch_ = " << min_epoch_ << ", max_epoch_ = " << max_epoch_ << std::endl;
     if (epoch < min_epoch_) min_epoch_ = epoch;
     if (epoch > max_epoch_) max_epoch_ = epoch;
-    std::cout << "after: min_epoch_ = " << min_epoch_ << ", max_epoch_ = " << max_epoch_ << std::endl;
     assert(min_epoch_ == max_epoch_);
 };
 
@@ -49,7 +46,6 @@ void LogBuffer::pass_nid(NidBuffer &nid_buffer) {
     // init epoch
     min_epoch_ = ~(uint64_t)0;
     max_epoch_ = 0;
-    std::cout << "[init] min_epoch_ = " << min_epoch_ << ", max_epoch_ = " << max_epoch_ << std::endl;
 }
 
 /**
@@ -133,11 +129,10 @@ void LogBuffer::write(PosixWriter &logfile, size_t &byte_count) {
 
     // create json format of logs
     std::string json_log = create_json_log();
-    std::cout << json_log << std::endl;
+    // std::cout << json_log << std::endl;
     logfile.write((void*)json_log.data(), json_log.size());
 
     // clear for next transactions
-    // CHECK: これあってる？
     log_set_size_ = 0;
     log_set_.clear();
 }

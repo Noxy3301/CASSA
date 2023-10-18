@@ -131,7 +131,6 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
                     status = trans.insert(key, value);
                     if (status == Status::WARN_ALREADY_EXISTS) {
                         std::cout << "[ WARN     ] " << "key: " << key << " is already exists" << std::endl;
-                        // TODO: transaction abort
                     }
                     break;
                 case OpType::READ:
@@ -139,14 +138,12 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
                     trans.read(key);
                     if (status == Status::WARN_NOT_FOUND) {
                         std::cout << "[ WARN     ] " << "key: " << key << " is not found" << std::endl;
-                        // TODO: transaction abort
                     }
                     break;
                 case OpType::WRITE:
                     trans.write(key, value);
                     if (status == Status::WARN_NOT_FOUND) {
                         std::cout << "[ WARN     ] " << "key: " << key << " is not found" << std::endl;
-                        // TODO: transaction abort
                     }
                     break;
                 // case OpType::RMW:
@@ -166,15 +163,23 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
             // std::cout << trans.read_set_.size() << std::endl;
             // std::cout << trans.write_set_.size() << std::endl;
 
-            if (trans.validationPhase()) {
-                trans.writePhase();
-                storeRelease(myres.local_commit_count_, loadAcquire(myres.local_commit_count_) + 1);
-                // std::cout << "this transaction has been committed" << std::endl;
-                // cv.notify_one();
-                ocall_print_commit_message(txID, worker_thid);
-            } else {
+            if (status != Status::OK) {
+                std::cout << "transaction has been aborted." << std::endl;
                 trans.abort();
-                goto RETRY;
+                // こっちのabortはconflictによるものではないのでRETRYしない
+                // TODO: ということはちゃんとエラーメッセージを表示する必要があるのでは？
+            } else {
+                if (trans.validationPhase()) {
+                    trans.writePhase();
+                    storeRelease(myres.local_commit_count_, loadAcquire(myres.local_commit_count_) + 1);
+                    // std::cout << "this transaction has been committed" << std::endl;
+                    // cv.notify_one();
+                    // TODO: この処理をnotifier側でやる
+                    // ocall_print_commit_message(txID, worker_thid);
+                } else {
+                    trans.abort();
+                    goto RETRY;
+                }
             }
         }
     }

@@ -31,14 +31,10 @@ LogQueue::LogQueue() {
  */
 void LogQueue::enq(LogBuffer* x) {
     {
-        // std::cout << "enq try to get lock" << std::endl;
         std::lock_guard<std::mutex> lock(mutex_);
-        // std::cout << "enq start" << std::endl;
         auto &v = queue_[x->min_epoch_];
         v.emplace_back(x);
         data_added_.store(true);
-        // std::cout << "data_added_.store(true)" << std::endl;
-        // std::cout << "enq end" << std::endl;
     }
 }
 

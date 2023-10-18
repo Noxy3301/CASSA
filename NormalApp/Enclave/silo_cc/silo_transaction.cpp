@@ -367,8 +367,18 @@ void TxExecutor::epochWork(uint64_t &epoch_timer_start, uint64_t &epoch_timer_st
     // thread local epochを更新する(global epoch更新のため)
     TIDword old_tid;
     old_tid.obj_ = loadAcquire(CTIDW[worker_thid_]);
+
     // load Global Epoch
     atomicStoreThLocalEpoch(worker_thid_, atomicLoadGE());
+    uint64_t new_epoch = loadAcquire(ThLocalEpoch[worker_thid_]);
+    if (old_tid.epoch != new_epoch) {
+        TIDword tid;
+        tid.epoch = new_epoch;
+        tid.lock = 0;
+        tid.latest = 1;
+        // store CTIDW
+        __atomic_store_n(&(CTIDW[worker_thid_]), tid.obj_, __ATOMIC_RELEASE);
+    }
 }
 
 void TxExecutor::durableEpochWork(uint64_t &epoch_timer_start, uint64_t &epoch_timer_stop, const bool &quit) {

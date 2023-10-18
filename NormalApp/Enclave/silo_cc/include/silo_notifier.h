@@ -27,13 +27,16 @@ class NotificationId {
 public:
     uint32_t id_;
     uint32_t thread_id_;
-    uint64_t tx_start_;
-    uint64_t t_mid_;
+    uint64_t tx_start_time_;        // transaction start time
+    uint64_t tx_logging_time_ = 0;  // transaction logging time
+    uint64_t tx_commit_time_ = 0;   // transaction commit time
     uint64_t tid_;
 
-    NotificationId(uint32_t id, uint32_t thread_id, uint64_t tx_start) : id_(id), thread_id_(thread_id), tx_start_(tx_start) {}
+    NotificationId(uint32_t id, uint32_t thread_id, uint64_t tx_start_time) 
+        : id_(id), thread_id_(thread_id), tx_start_time_(tx_start_time) {}
     NotificationId() { NotificationId(0, 0, 0); }
 
+    // NOTE: NotificationIdのtidはLogBufferPool::push()のタイミングで書き込まれる
     uint64_t epoch() {
         TIDword tid;
         tid.obj_ = tid_;
@@ -58,15 +61,24 @@ public:
     NidBufferItem *front_;
     NidBufferItem *end_;
 
-    NidBuffer();
-    ~NidBuffer();
+    NidBuffer() {
+        front_ = end_ = new NidBufferItem(0);
+    }
+    
+    ~NidBuffer() {
+        auto itr = front_;
+        while (itr != nullptr) {
+            auto next = itr->next_;
+            delete itr;
+            itr = next;
+        }
+    }
 
     void store(std::vector<NotificationId> &nid_buffer, uint64_t epoch);
-    // void notify(std::uint64_t min_dl, NotifyStats &stats);
     void notify(uint64_t min_dl);
-    size_t size() {return size_;}
-    bool empty() {return size_ == 0;}
-    uint64_t min_epoch() { return front_->epoch_;}
+    size_t size() { return size_; }
+    bool empty() { return size_ == 0; }
+    uint64_t min_epoch() { return front_->epoch_; }
     
 private:
     size_t size_ = 0;
@@ -88,7 +100,6 @@ public:
 
 private:
     std::mutex mutex_;
-    size_t try_count_ = 0;  // NOTE: いらないかも
     uint64_t start_clock_;
     std::vector<std::vector<uint64_t>> epoch_log_;
     std::unordered_set<Logger*> logger_set_;

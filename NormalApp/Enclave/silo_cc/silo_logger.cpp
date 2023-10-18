@@ -56,10 +56,7 @@ void Logger::logging(bool quit) {
             max_epoch = log_buffer->max_epoch_;
         }
         log_buffer->write(logfile_, byte_count_);
-        // log_buffer->pass_nid(nid_buffer_, nid_stats_, deq_time);
-        // log_buffer->pass_nidを実装していないのでここでmin_epochとmax_epochを初期化する
-        log_buffer->min_epoch_ = ~(uint64_t)0;
-        log_buffer->max_epoch_ = 0;
+        log_buffer->pass_nid(nid_buffer_);
         log_buffer->return_buffer();
     }
     logfile_.sync();

@@ -47,6 +47,7 @@ public:
     // for logging
     LogBufferPool log_buffer_pool_;
     NotificationId nid_;
+    uint32_t nid_counter_ = 0;
 
     // for garbage collection
     GarbageCollector gc_;

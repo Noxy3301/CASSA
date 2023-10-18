@@ -6,8 +6,7 @@ void TxExecutor::begin() {
     max_wset_.obj_ = 0;
     max_rset_.obj_ = 0;
 
-    // TODO: notificationID counterの実装
-    // nid_ = NotificationId(nid_counter_++, thid_, rdtscp());
+    nid_ = NotificationId(nid_counter_++, worker_thid_, rdtscp());
 }
 
 void TxExecutor::abort() {

@@ -21,10 +21,36 @@ void LogBuffer::push(std::uint64_t tid, NotificationId &nid, std::vector<WriteEl
     TIDword tidw;
     tidw.obj_ = tid;
     std::uint64_t epoch = tidw.epoch;
+    std::cout << this << std::endl;
+    std::cout << "before: min_epoch_ = " << min_epoch_ << ", max_epoch_ = " << max_epoch_ << std::endl;
     if (epoch < min_epoch_) min_epoch_ = epoch;
     if (epoch > max_epoch_) max_epoch_ = epoch;
+    std::cout << "after: min_epoch_ = " << min_epoch_ << ", max_epoch_ = " << max_epoch_ << std::endl;
     assert(min_epoch_ == max_epoch_);
 };
+
+void LogBuffer::pass_nid(NidBuffer &nid_buffer) {
+    // if nid_set_ is empty, return
+    size_t n = nid_set_.size();
+    if (n == 0) return;
+
+    // update each nid's tx_logging_time_
+    uint64_t t = rdtscp();
+    for (auto &nid : nid_set_) {
+        nid.tx_logging_time_ = t;
+    }
+
+    // copy Notification ID
+    nid_buffer.store(nid_set_, min_epoch_);
+
+    // clear nid_set_
+    nid_set_.clear();
+
+    // init epoch
+    min_epoch_ = ~(uint64_t)0;
+    max_epoch_ = 0;
+    std::cout << "[init] min_epoch_ = " << min_epoch_ << ", max_epoch_ = " << max_epoch_ << std::endl;
+}
 
 /**
  * @brief Returns the buffer to the pool for recycling.
@@ -191,11 +217,12 @@ bool LogBufferPool::is_ready() {
  * @param new_epoch_begins A boolean flag indicating whether a new epoch is beginning.
  */
 void LogBufferPool::push(std::uint64_t tid, NotificationId &nid, std::vector<WriteElement> &write_set, bool new_epoch_begins) {
+    // update nid
     nid.tid_ = tid;
-    nid.t_mid_ = rdtscp();
-    assert(current_buffer_ != NULL);
+    nid.tx_logging_time_ = rdtscp();
 
     // check buffer capa
+    assert(current_buffer_ != NULL);
     if (current_buffer_->log_set_size_ > MAX_BUFFERED_LOG_ENTRIES || new_epoch_begins) {
         publish();
     }

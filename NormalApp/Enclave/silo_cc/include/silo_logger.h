@@ -21,8 +21,6 @@ class Logger {
         unsigned int counter_ = 0;
 
         void logging(bool quit);
-        void rotate_logfile(uint64_t epoch);
-        void show_result();
 
     public:
         int thid_;

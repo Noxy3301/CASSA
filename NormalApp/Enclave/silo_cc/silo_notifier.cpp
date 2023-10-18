@@ -53,17 +53,43 @@ void PepochFile::close() {
 
 
 
-NidBuffer::NidBuffer() {
-    front_ = end_ = new NidBufferItem(0);
-}
+// void NidBuffer::store(std::vector<NotificationId> &nid_buffer, uint64_t epoch) {
+//     // aquire lock
+//     std::lock_guard<std::mutex> lock(mutex_);
 
-NidBuffer::~NidBuffer() {
-    auto itr = front_;
-    while (itr != nullptr) {
-        auto next = itr->next_;
-        delete itr;
-        itr = next;
+//     // create notification id buffer item
+//     // NOTE: 元の設計がbufferをリサイクルしているのでそれをやるべきなのか？
+//     NidBufferItem *item = new NidBufferItem(epoch);
+//     std::move(nid_buffer.begin(), nid_buffer.end(), std::back_inserter(item->buffer_));
+//     nid_buffer.clear(); // move後nid_bufferは未定義になるので一応clearしておく
+
+//     // add to buffer
+//     if (front_ == NULL) {
+//         front_ = end_ = item;
+//     } else {
+//         end_->next_ = item;
+//         end_ = item;
+//     }
+// }
+
+void NidBuffer::store(std::vector<NotificationId> &nid_buffer, std::uint64_t epoch) {
+  NidBufferItem *itr = front_;
+
+  // search for a suitable buffer that has an equivalent epoch
+  while (itr->epoch_ < epoch) {
+    if (itr->next_ == NULL) {
+      // if no suitable buffer is found, create a new one
+      itr->next_ = end_ = new NidBufferItem(epoch);
+      if (max_epoch_ < epoch) max_epoch_ = epoch;
+      //printf("create end_=%lx end_->next_=%lx end_->epoch_=%lu epoch=%lu max_epoch_=%lu\n",(uint64_t)end_,(uint64_t)end_->next_, end_->epoch_, epoch, max_epoch_);
     }
+    itr = itr->next_;
+  }
+  
+  // store notification ids to the buffer
+  assert(itr->epoch_ == epoch);
+  std::copy(nid_buffer.begin(), nid_buffer.end(), std::back_inserter(itr->buffer_));
+  size_ += nid_buffer.size();
 }
 
 // NOTE: NotifyStatsはデータ取得用なので削除
@@ -75,40 +101,28 @@ void NidBuffer::notify(std::uint64_t min_dl) {
         // printf("front_->epoch_=%lu min_dl=%lu\n", front_->epoch_, min_dl);
         for (auto &nid : front_->buffer_) {
             // notify client here
-            // TODO: 仕様を理解してこっちでnotifyするようにする
+            nid.tx_commit_time_ = rdtscp();
+            std::cout << "id: " << nid.id_ << ", "
+                      << "thread_id: " << nid.thread_id_ << ", "
+                      << "tx process time: " << nid.tx_logging_time_ - nid.tx_start_time_ << ", "
+                      << "tx execution time" << nid.tx_commit_time_ - nid.tx_start_time_ << std::endl;
         }
 
         // clear buffer
+        // NOTE: NidBuffer.size_使ってなさそうなのでこれ使ってる関数と一緒に消すかも
         size_t n = front_->buffer_.size();
         size_ -= n;
         front_->buffer_.clear();
         if (front_->next_ == NULL) break;
 
         // recycle buffer
-        front_->epoch_ = end_->epoch_ + 1;
-        end_->next_ = front_;
-        end_ = front_;
-        front_ = front_->next_;
-        end_->next_ = NULL;
+        front_->epoch_ = end_->epoch_ + 1;  // front_のepochをend_の次にする
+        end_->next_ = front_;               // end_の次をfront_にする
+        end_ = front_;                      // end_をfront_にする
+        front_ = front_->next_;             // front_を次にする
+        end_->next_ = NULL;                 // end_(最後尾の元front_)の次をnullにする
         if (front_ == orig_front) break;
     }
-}
-
-// TODO: 仕様理解、あとnewを使っているからできれば回避したい
-void NidBuffer::store(std::vector<NotificationId> &nid_buffer, std::uint64_t epoch) {
-    NidBufferItem *itr = front_;
-    while (itr->epoch_ < epoch) {
-        if (itr->next_ == NULL) {
-            // create buffer
-            itr->next_ = end_ = new NidBufferItem(epoch);
-            if (max_epoch_ < epoch) max_epoch_ = epoch;
-            //printf("create end_=%lx end_->next_=%lx end_->epoch_=%lu epoch=%lu max_epoch_=%lu\n",(uint64_t)end_,(uint64_t)end_->next_, end_->epoch_, epoch, max_epoch_);
-        }
-        itr = itr->next_;
-    }
-    // assert(itr->epoch == epoch);
-    std::copy(nid_buffer.begin(), nid_buffer.end(), std::back_inserter(itr->buffer_));
-    size_ += nid_buffer.size();
 }
 
 

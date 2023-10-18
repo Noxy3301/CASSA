@@ -34,7 +34,7 @@ public:
     LogBuffer(LogBufferPool &pool) : pool_(pool) {}
 
     void push(std::uint64_t tid, NotificationId &nid, std::vector<WriteElement> &write_set);
-    // void pass_nid(NidBuffer &nid_buffer, NidStats &nid_stats, std::uint64_t deq_time);
+    void pass_nid(NidBuffer &nid_buffer);
     void return_buffer();
     bool empty();
     std::string create_json_log();

@@ -72,7 +72,7 @@ void NidBuffer::notify(std::uint64_t min_dl) {
 
     NidBufferItem *orig_front = front_;
     while (front_->epoch_ <= min_dl) {
-        printf("front_->epoch_=%lu min_dl=%lu\n", front_->epoch_, min_dl);
+        // printf("front_->epoch_=%lu min_dl=%lu\n", front_->epoch_, min_dl);
         for (auto &nid : front_->buffer_) {
             // notify client here
             // TODO: 仕様を理解してこっちでnotifyするようにする

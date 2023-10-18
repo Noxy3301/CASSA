@@ -16,8 +16,8 @@
 #include "utils/transaction_manager.h"
 
 uint64_t GlobalEpoch = 1;                  // Global Epoch
-std::vector<uint64_t> ThLocalEpoch;        // 各ワーカースレッドのLocal epoch, Global epochを参照せず、epoch更新時に更新されるLocal epochを参照してtxを処理する
-std::vector<uint64_t> CTIDW;               // 各ワーカースレッドのCommit Timestamp ID, TID算出時にWorkerが発行したTIDとして用いられたものが保存される(TxExecutorのmrctid_と同じ値を持っているはず...)
+std::vector<uint64_t> ThLocalEpoch;        // Each worker thread processes transaction using its local epoch, updated during validationPhase or epochWork.
+std::vector<uint64_t> CTIDW;               // The last committed TID, updated during the publishing of the current buffer phase.
 
 uint64_t DurableEpoch;                     // Durable Epoch, 永続化された全てのデータのエポックの最大値を表す(epoch <= DのtxはCommit通知ができる)
 std::vector<uint64_t> ThLocalDurableEpoch; // 各ロガースレッドのLocal durable epoch, Global durable epcohの算出に使う

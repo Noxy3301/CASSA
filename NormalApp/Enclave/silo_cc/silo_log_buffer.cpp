@@ -140,7 +140,6 @@ void LogBuffer::write(PosixWriter &logfile, size_t &byte_count) {
     // CHECK: これあってる？
     log_set_size_ = 0;
     log_set_.clear();
-    nid_set_.clear();
 }
 
 /**

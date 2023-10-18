@@ -53,25 +53,6 @@ void PepochFile::close() {
 
 
 
-// void NidBuffer::store(std::vector<NotificationId> &nid_buffer, uint64_t epoch) {
-//     // aquire lock
-//     std::lock_guard<std::mutex> lock(mutex_);
-
-//     // create notification id buffer item
-//     // NOTE: 元の設計がbufferをリサイクルしているのでそれをやるべきなのか？
-//     NidBufferItem *item = new NidBufferItem(epoch);
-//     std::move(nid_buffer.begin(), nid_buffer.end(), std::back_inserter(item->buffer_));
-//     nid_buffer.clear(); // move後nid_bufferは未定義になるので一応clearしておく
-
-//     // add to buffer
-//     if (front_ == NULL) {
-//         front_ = end_ = item;
-//     } else {
-//         end_->next_ = item;
-//         end_ = item;
-//     }
-// }
-
 void NidBuffer::store(std::vector<NotificationId> &nid_buffer, std::uint64_t epoch) {
   NidBufferItem *itr = front_;
 

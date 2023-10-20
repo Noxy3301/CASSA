@@ -125,6 +125,10 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
             OpType opType = proc.value().ope_;
             std::string key = proc.value().key_;
             std::string value = proc.value().value_;
+            std::vector<std::string> values;
+
+            std::string return_value_str;  // 返される値を格納するための string オブジェクトを作成
+            std::string *return_value = &return_value_str;  // オブジェクトのアドレスをポインタに設定
 
             switch (opType) {
                 case OpType::INSERT:
@@ -135,13 +139,15 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
                     break;
                 case OpType::READ:
                     // TODO: 恐らくrmvでreadで取得したValueを使うはずだから渡せるように用意する
-                    trans.read(key);
+                    status = trans.read(key, return_value);
                     if (status == Status::WARN_NOT_FOUND) {
                         std::cout << "[ WARN     ] " << "key: " << key << " is not found" << std::endl;
+                    } else if (status == Status::OK) {
+                        values.push_back(*return_value);
                     }
                     break;
                 case OpType::WRITE:
-                    trans.write(key, value);
+                    status = trans.write(key, value);
                     if (status == Status::WARN_NOT_FOUND) {
                         std::cout << "[ WARN     ] " << "key: " << key << " is not found" << std::endl;
                     }
@@ -176,6 +182,9 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
                     // cv.notify_one();
                     // TODO: この処理をnotifier側でやる
                     // ocall_print_commit_message(txID, worker_thid);
+                    for (auto &value : values) {
+                        std::cout << value << std::endl;
+                    }
                 } else {
                     trans.abort();
                     goto RETRY;

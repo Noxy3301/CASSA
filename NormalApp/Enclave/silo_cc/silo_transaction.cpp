@@ -63,7 +63,7 @@ Status TxExecutor::insert(std::string &str_key, std::string &str_value) {
 // TODO: delete implementation
 // void TxExecutor::tx_delete(Key &key) {}
 
-Status TxExecutor::read(std::string &str_key) {
+Status TxExecutor::read(std::string &str_key, std::string *retrun_value) {
     // Place variables before the first goto instruction to avoid "crosses initialization of ..." error under -fpermissive.
     Key key(str_key);
     Value *found_value; // TODO: found_valueを返すべきか？
@@ -94,7 +94,7 @@ Status TxExecutor::read(std::string &str_key) {
         return status;
     }
 
-    found_value = readElement->value_;
+    *retrun_value = found_value->body_;
 
 FINISH_READ:
     return Status::OK;

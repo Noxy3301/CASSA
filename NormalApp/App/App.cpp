@@ -110,7 +110,7 @@ void awaitUserCommands() {
     CommandHandler handler;
     
     while (true) {
-        std::cout << "> ";
+        // std::cout << "> ";
         std::string command;
         std::getline(std::cin, command);
         

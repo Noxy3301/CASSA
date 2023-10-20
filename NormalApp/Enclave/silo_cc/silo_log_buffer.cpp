@@ -15,6 +15,9 @@ void LogBuffer::push(std::uint64_t tid, NotificationId &nid, std::vector<WriteEl
         log_set_.emplace_back(tid, itr.op_, key, val);
         log_set_size_++;
     }
+
+    // read only transactionの場合、LogBufferのCurrent TIDを更新する必要はない
+    if (write_set.size() == 0) return;
     nid_set_.emplace_back(nid);
 
     // epoch tracking(1つのLogbufferに違うEpochのログが入らないかチェックしているらしい)

@@ -2,4 +2,4 @@ NormalApp/build/*
 .vscode
 a/*
 build/*
-sandbox
+sandbox/a.out

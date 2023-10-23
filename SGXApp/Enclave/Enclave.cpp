@@ -35,6 +35,12 @@
 #include <stdio.h> /* vsnprintf */
 #include <string.h>
 
+#include <string>
+
+#include "../../sandbox/nlohman_json/json.hpp"
+
+using json = nlohmann::json;
+
 /* 
  * printf: 
  *   Invokes OCALL to display the enclave buffer to the terminal.
@@ -51,5 +57,22 @@ int printf(const char* fmt, ...)
 }
 
 void test() {
-    printf("unchi buriburi\n");
+    // JSONオブジェクトの作成
+    json j;
+    j["pi"] = 3.141;
+    j["happy"] = true;
+    j["name"] = "Niels";
+    j["nothing"] = nullptr;
+    j["answer"]["everything"] = 42;
+    j["list"] = { 1, 0, 2 };
+    j["object"] = { {"currency", "USD"}, {"value", 42.99} };
+    
+    // JSONオブジェクトを文字列にシリアライズ
+    std::string json_str = j.dump();
+    
+    // 文字列を再びJSONオブジェクトにデシリアライズ
+    json j2 = json::parse(json_str);
+    
+    // 文字列をprintfで出力
+    printf("%s\n", json_str.c_str());
 }

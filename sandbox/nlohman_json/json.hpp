@@ -18,6 +18,8 @@
 #ifndef INCLUDE_NLOHMANN_JSON_HPP_
 #define INCLUDE_NLOHMANN_JSON_HPP_
 
+#define JSON_NO_IO  // disable #ifndef JSON_NO_IO
+
 #include <algorithm> // all_of, find, for_each
 #include <cstddef> // nullptr_t, ptrdiff_t, size_t
 #include <functional> // hash, less
@@ -7310,7 +7312,7 @@ NLOHMANN_JSON_NAMESPACE_END
 
 
 #include <array> // array
-#include <clocale> // localeconv
+// #include <clocale> // localeconv
 #include <cstddef> // size_t
 #include <cstdio> // snprintf
 #include <cstdlib> // strtof, strtod, strtold, strtoll, strtoull
@@ -7446,9 +7448,7 @@ class lexer : public lexer_base<BasicJsonType>
     JSON_HEDLEY_PURE
     static char get_decimal_point() noexcept
     {
-        const auto* loc = localeconv();
-        JSON_ASSERT(loc != nullptr);
-        return (loc->decimal_point == nullptr) ? '.' : *(loc->decimal_point);
+        return '.'; // Return the period as the decimal point for the Japanese locale
     }
 
     /////////////////////
@@ -16804,7 +16804,7 @@ NLOHMANN_JSON_NAMESPACE_END
 
 #include <algorithm> // reverse, remove, fill, find, none_of
 #include <array> // array
-#include <clocale> // localeconv, lconv
+// #include <clocale> // localeconv, lconv
 #include <cmath> // labs, isfinite, isnan, signbit
 #include <cstddef> // size_t, ptrdiff_t
 #include <cstdint> // uint8_t
@@ -17987,9 +17987,9 @@ class serializer
     serializer(output_adapter_t<char> s, const char ichar,
                error_handler_t error_handler_ = error_handler_t::strict)
         : o(std::move(s))
-        , loc(std::localeconv())
-        , thousands_sep(loc->thousands_sep == nullptr ? '\0' : std::char_traits<char>::to_char_type(* (loc->thousands_sep)))
-        , decimal_point(loc->decimal_point == nullptr ? '\0' : std::char_traits<char>::to_char_type(* (loc->decimal_point)))
+        // , loc(std::localeconv())
+        , thousands_sep('\0') // thousands separator is not used in Japanese locale
+        , decimal_point('.') // decimal point is a period in Japanese locale
         , indent_char(ichar)
         , indent_string(512, indent_char)
         , error_handler(error_handler_)
@@ -18886,7 +18886,7 @@ class serializer
     std::array<char, 64> number_buffer{{}};
 
     /// the locale
-    const std::lconv* loc = nullptr;
+    // const std::lconv* loc = nullptr;
     /// the locale's thousand separator character
     const char thousands_sep = '\0';
     /// the locale's decimal point character

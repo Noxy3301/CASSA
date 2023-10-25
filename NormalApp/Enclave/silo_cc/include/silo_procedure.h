@@ -7,13 +7,17 @@
 
 class Procedure {
     public:
-        size_t txIDcounter_;
+        uint64_t uuid_high_;
+        uint64_t uuid_low_;
         OpType ope_;
         std::string key_;
         std::string value_;
 
-        Procedure(size_t txIDcounter, OpType ope, std::string key, std::string value)
-            : txIDcounter_(txIDcounter), ope_(ope), key_(key), value_(value) {}
+        Procedure(uint64_t uuid_high, uint64_t uuid_low, 
+                  OpType ope, std::string key, std::string value)
+            : uuid_high_(uuid_high), uuid_low_(uuid_low), 
+              ope_(ope), key_(key), value_(value) {}
+
 
         // bool operator<(const Procedure &right) const {
         //     if (this->key_ == right.key_ && this->ope_ == Ope::WRITE && right.ope_ == Ope::READ) {

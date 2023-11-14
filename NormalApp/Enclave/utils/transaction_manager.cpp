@@ -9,7 +9,7 @@ void TransactionManager::pushTransaction(size_t worker_thid, size_t txIDcounter,
     std::string key = deserializeKey(tx_data);
     std::string value = deserializeValue(tx_data, opType);
     
-    Procedure procedure(txIDcounter, opType, key, value);
+    Procedure procedure(0, 0, opType, key, value);   // TODO: adopt uuid 
     
     // Push the deserialized Procedure object to the corresponding worker's queue
     std::unique_lock<std::mutex> lock(queues_[worker_thid].mutex);

@@ -112,7 +112,7 @@ void ecall_worker_thread_work(size_t worker_thid, size_t logger_thid) {
         std::optional<Procedure> proc = TxManager.popTransaction(worker_thid);
         if (proc.has_value()) {
             // procedureをKey/Valueに展開する
-            size_t txID = proc.value().txIDcounter_;
+            size_t txID = proc.value().uuid_high_;  // TODO: adopt uuid
             // OpType opType = proc.value().ope_;
             // Key key(proc.value().key_);
             // Value *value = new Value(proc.value().value_);  // TODO: heapに確保しているから適切なタイミングでdeleteする必要がある

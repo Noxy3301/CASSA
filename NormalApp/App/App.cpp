@@ -6,38 +6,45 @@
 #include "App.h"
 
 #include "../Include/consts.h"
-#include "utils/include/command_handler.h"
+#include "utils/command_handler.hpp"
+#include "utils/parse_command.hpp"
 #include "utils/include/logger_affinity.h"
 
 // システム情報の表示関数
 void displaySystemInfo() {
-    std::cout << "\033[32m" << "[ INFO     ] " << "\033[0m" << "System Information" << std::endl;
+    std::cout << "\033[32m" << "[ INFO     ] " << "\033[0m" 
+              << "System Information" << std::endl;
 
     // 利用可能なスレッドの数を取得する
     unsigned int numThreads = std::thread::hardware_concurrency();
     // スレッド数が0(取得できない)場合
     if(numThreads == 0) {
-        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "Unable to detect available threads or no threads are available." << std::endl;
+        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                  << "Unable to detect available threads or no threads are available." << std::endl;
         exit(1);
     }
     // ワーカースレッドの数とロガースレッドの数が利用可能なスレッドの数より多い場合
     if (WORKER_NUM + LOGGER_NUM > numThreads) {
-        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "The number of Worker Threads and Logger Threads must be less than or equal to the number of available threads." << std::endl;
+        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                  << "The number of Worker Threads and Logger Threads must be less than or equal to the number of available threads." << std::endl;
         exit(1);
     }
     // ワーカースレッド数が0以下の場合
     if (WORKER_NUM <= 0) {
-        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "There must be at least one Worker Thread. (check WORKER_NUM indicated in consts.h)" << std::endl;
+        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                  << "There must be at least one Worker Thread. (check WORKER_NUM indicated in consts.h)" << std::endl;
         exit(1);
     }
     // ロガースレッドの数が0以下の場合
     if (LOGGER_NUM <= 0) {
-        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" << "There must be at least one Logger Thread. (check LOGGER_NUM indicated in consts.h)" << std::endl;
+        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                  << "There must be at least one Logger Thread. (check LOGGER_NUM indicated in consts.h)" << std::endl;
         exit(1);
     }
     // ロガースレッドがhardware_concurrency()より多い場合
     if(LOGGER_NUM >= WORKER_NUM) {
-        std::cout << "\033[33m" << "[ WARNING  ] " << "\033[0m" << "It is recommended to set LOGGER_NUM to be less than WORKER_NUM to avoid the possibility of having unused logger threads." << std::endl;
+        std::cout << "\033[33m" << "[ WARNING  ] " << "\033[0m" 
+                  << "It is recommended to set LOGGER_NUM to be less than WORKER_NUM to avoid the possibility of having unused logger threads." << std::endl;
     }
 
     // CPUクロック周波数の取得
@@ -106,19 +113,123 @@ void createThreads(std::vector<std::thread>& worker_threads, std::vector<std::th
 
 // ユーザーからの命令を待機する関数
 void awaitUserCommands() {
-    std::cout << "\033[32m" << "[ INFO     ] " << "\033[0m" << "Awaiting User Commands... (type 'help' for available commands, 'exit' to quit)" << std::endl;
+    std::cout << "\033[32m" << "[ INFO     ] " << "\033[0m" 
+              << "Awaiting User Commands... (type '/help' for available commands, '/exit' to quit)" << std::endl;
+
     CommandHandler handler;
-    
+    std::vector<std::string> procedure;
+    bool in_procedure = false;
+    bool in_transaction = false;
+
     while (true) {
-        // std::cout << "> ";
+        // show procedure prompt if in procedure
+        if (in_procedure) {
+            std::cout << "\033[32m" << "=== start of procedure ===" << std::endl;
+            for (auto proc : procedure) {
+                std::cout << proc << std::endl;
+            }
+            std::cout << "===  end of procedure  ===" << "\033[0m" << std::endl;
+        }
+
+        // get user input
+        std::cout << "> ";
         std::string command;
         std::getline(std::cin, command);
-        
-        if (std::cin.eof() || !handler.handleCommand(command)) {
-            // EOFが検出された、またはhandler.handleCommandがfalseを返した場合
-            break; // whileループを抜ける
+
+        // exit the loop if EOF is detected or if "/exit" command is entered by the user
+        if (std::cin.eof() || command == "/exit") {
+            procedure.clear();  // 念のため
+            break;
         }
-        // std::cout << std::endl;
+
+        // handle /help command
+        if (command == "/help") {
+            handler.printHelp();
+            continue;
+        }
+
+        // handle /mkproc command
+        if (command == "/mkproc") {
+            if (in_procedure) {
+                std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                          << "Error: Already in a procedure. Please end the current procedure first." << std::endl;
+            } else {
+                in_procedure = true;
+                procedure.clear();
+            }
+            continue;
+        }
+
+        // handle /endproc command
+        if (command == "/endproc") {
+            if (!in_procedure) {
+                std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                          << "Error: Not in a procedure. Please begin a procedure first." << std::endl;
+            } else {
+                if (in_transaction) {
+                    std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                              << "Error: Still in a transaction. Please end the current transaction first." << std::endl;
+                } else {
+                    in_procedure = false;
+                    if (procedure.size() > 0) {
+                        // create json object for procedure
+                        nlohmann::json procedure_json = parseCommand(procedure);
+                        
+                        // dump json object to string
+                        std::string procedure_json_string = procedure_json.dump();
+                        uint8_t *dumped_json_data = reinterpret_cast<const uint8_t*>(procedure_json_string.data());
+                        size_t dumped_json_size = procedure_json_string.size();
+
+                        // send procedure to enclave
+                        size_t worker_thid = handler.rnd() % WORKER_NUM;
+                        ecall_push_tx(worker_thid, handler.txIDcounter_++, dumped_json_data, dumped_json_size);
+
+                        // clear procedure
+                        procedure.clear();
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (in_procedure) {
+            if (command == "BEGIN_TRANSACTION") {
+                if (in_transaction) {
+                    std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                              << "Error: Already in a transaction. Please end the current transaction first." << std::endl;
+                } else {
+                    in_transaction = true;
+                    procedure.push_back(command);
+                }
+            } else if (command == "END_TRANSACTION") {
+                if (!in_transaction) {
+                    std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                              << "Error: Not in a transaction. Please begin a transaction first." << std::endl;
+                } else {
+                    in_transaction = false;
+                    procedure.push_back(command);
+                }
+            } else if (in_transaction) {
+                    std::pair<bool, std::string> check_syntax_result = handler.checkOperationSyntax(command);
+                    if (check_syntax_result.first) {
+                        procedure.push_back(command);
+                    } else {
+                        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                                  << check_syntax_result.second << std::endl;
+                    }
+            } else if (!in_transaction) {
+                    std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                              << "Error: Not in a transaction. Please begin a transaction first." << std::endl;
+            } else {
+                std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                          << "Error: Invalid command. Please type '/help' for available commands." << std::endl;
+            }
+            continue;
+        }
+
+        // show error message because valid command was not entered here
+        std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+                  << "Error: Invalid command. Please type '/help' for available commands." << std::endl;
     }
 }
 

@@ -12,6 +12,8 @@
 #include "../../../Include/consts.h"
 #include "../../../Enclave/Enclave.h"
 
+#include "../../../Include/third_party/json.hpp"
+
 class CommandHandler {
 public:
     std::random_device rnd;

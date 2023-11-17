@@ -36,6 +36,17 @@ SOCKETINCDIR = $(SOCKET_DIR)/include
 SSLINCDIR = $(SGXSSL_PKG_PATH)/include
 TLSINCDIR = $(SGXTLS_DIR)/include
 
+# source files
+SRC_FILES = App.cpp \
+            ../../sgx_socket/untrusted_sgx_socket.cpp \
+		    ../../common/ucommon.cpp
+
+# object files
+OBJ_FILES = App.o \
+	        untrusted_sgx_socket.o \
+	        tls_client_u.o \
+	        ucommon.o
+
 all: build
 
 build:
@@ -49,8 +60,8 @@ build:
 		--search-path ../../common
 
 	$(CC) -c $(App_C_Flags) tls_client_u.c
-	$(CXX) -c -DM_TLS_CLIENT $(App_Cpp_Flags) host.cpp ../../sgx_socket/untrusted_sgx_socket.cpp ../../common/ucommon.cpp
-	$(CXX) -o tls_client_host host.o untrusted_sgx_socket.o tls_client_u.o ucommon.o $(App_Link_Flags)
+	$(CXX) -c -DM_TLS_CLIENT $(App_Cpp_Flags) $(SRC_FILES)
+	$(CXX) -o tls_client_host $(OBJ_FILES) $(App_Link_Flags)
 
 clean:
 	rm -f tls_client_host *.o tls_client_u.* tls_client_args.h

@@ -38,9 +38,28 @@ Enclave_Test_Key := private_test_key.pem
 
 .PHONY: all build clean run
 
-SRC_FILES = openssl_server.cpp ../../sgx_socket/htons.c ../../sgx_socket/htonl.c ../../sgx_socket/trusted_sgx_socket.cpp ../../common/verify_callback.cpp ../../common/utility.cpp ../../common/openssl_utility.cpp ../../common/tcommon.cpp ../../common/err_msg.cpp
+# source files
+SRC_FILES = Enclave.cpp \
+			../../sgx_socket/htonl.c \
+			../../sgx_socket/htons.c \
+			../../sgx_socket/trusted_sgx_socket.cpp \
+			../../common/err_msg.cpp \
+			../../common/openssl_utility.cpp \
+			../../common/tcommon.cpp \
+			../../common/utility.cpp \
+			../../common/verify_callback.cpp \
 
-OBJ_FILES = tls_server_t.o trusted_sgx_socket.o htonl.o htons.o openssl_server.o verify_callback.o utility.o openssl_utility.o tcommon.o err_msg.o
+# object files
+OBJ_FILES = Enclave.o \
+			htonl.o \
+			htons.o \
+			trusted_sgx_socket.o \
+			err_msg.o \
+			openssl_utility.o \
+			tcommon.o \
+			utility.o \
+			verify_callback.o \
+			tls_server_t.o 
 
 all:
 	$(MAKE) build

@@ -33,9 +33,9 @@
 #include <string.h>
 #include <unistd.h>
 #ifdef M_TLS_SERVER
-#include "../server/host/tls_server_u.h"
+#include "../server/App/tls_server_u.h"
 #else
-#include "../client/host/tls_client_u.h"
+#include "../client/App/tls_client_u.h"
 #endif
 
 int ocall_close(int fd)

@@ -54,12 +54,12 @@
 all: build
 
 build:
-	$(MAKE) -C enc
-	$(MAKE) -C host
+	$(MAKE) -C App
+	$(MAKE) -C Enclave
 
 clean:
-	$(MAKE) -C enc clean
-	$(MAKE) -C host clean
+	$(MAKE) -C App clean
+	$(MAKE) -C Enclave clean
 
 run:
-	host/tls_server_host ./enc/tls_server_enclave.signed.so -port:12341 -server-in-loop
+	App/tls_server_host ./Enclave/tls_server_enclave.signed.so -port:12341 -server-in-loop

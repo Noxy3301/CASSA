@@ -45,8 +45,8 @@ build:
 		--search-path $(SGXSSL_PKG_PATH)/include
 	
 	$(CC) -c $(App_C_Flags) tls_server_u.c
-	$(CXX) -c -DM_TLS_SERVER $(App_Cpp_Flags) host.cpp ../../sgx_socket/untrusted_sgx_socket.cpp ../../common/ucommon.cpp
-	$(CXX) -o tls_server_host untrusted_sgx_socket.o tls_server_u.o host.o ucommon.o $(App_Link_Flags)
+	$(CXX) -c -DM_TLS_SERVER $(App_Cpp_Flags) App.cpp ../../sgx_socket/untrusted_sgx_socket.cpp ../../common/ucommon.cpp
+	$(CXX) -o tls_server_host untrusted_sgx_socket.o tls_server_u.o App.o ucommon.o $(App_Link_Flags)
 
 clean:
 	rm -f tls_server_host* *.o tls_server_u.* tls_server_args.h

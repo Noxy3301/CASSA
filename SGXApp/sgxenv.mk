@@ -91,7 +91,7 @@ endif
 SGXSSL_U_Link_Libraries := -L$(SGXSSL_PKG_PATH)/lib64 -Wl,--whole-archive -l$(SGXSSL_U_Library_Name) -Wl,--no-whole-archive
 SGXTLS_U_Link_Libraries := -lsgx_utls
 
-App_Cpp_Flags := $(App_C_Flags) -std=c++11
+App_Cpp_Flags := $(App_C_Flags) -std=c++17
 App_Link_Flags := $(SGX_COMMON_CFLAGS) $(SGXSSL_U_Link_Libraries) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) $(SGXTLS_U_Link_Libraries) -lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto -lpthread 
 
 ######## Enclave Settings ########
@@ -124,7 +124,7 @@ else
 endif
 
 Enclave_C_Flags += $(Enclave_Include_Paths) 
-Enclave_Cpp_Flags := $(Enclave_C_Flags) -std=c++11 -nostdinc++
+Enclave_Cpp_Flags := $(Enclave_C_Flags) -std=c++17 -nostdinc++
 
 SgxSSL_Link_Libraries := -L$(SGXSSL_PKG_PATH)/lib64 -Wl,--whole-archive -l$(SGXSSL_Library_Name) -Wl,--no-whole-archive \
 	-l$(OpenSSL_SSL_Library_Name) -l$(OpenSSL_Crypto_Library_Name)

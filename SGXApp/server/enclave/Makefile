@@ -38,11 +38,27 @@ Enclave_Test_Key := private_test_key.pem
 
 .PHONY: all build clean run
 
+MASSTREE_SRC_FILES = masstree/masstree_get.cpp \
+					 masstree/masstree_insert.cpp \
+					 masstree/masstree_node.cpp \
+					 masstree/masstree_remove.cpp \
+					 masstree/masstree.cpp
+
+MASSTREE_OBJ_FILES = masstree_get.o \
+					 masstree_insert.o \
+					 masstree_node.o \
+					 masstree_remove.o \
+					 masstree.o
+
+# SILO_CC_SRC_FILES =
+# SILO_CC_OBJ_FILES =
+
 TLS_SRC_FILES = openssl_server/tls_server.cpp
 TLS_OBJ_FILES = tls_server.o
 
 # source files
-SRC_FILES = $(TLS_SRC_FILES) \
+SRC_FILES = $(MASSTREE_SRC_FILES) \
+			$(TLS_SRC_FILES) \
 			cassa_server.cpp \
 			../../sgx_socket/htonl.c \
 			../../sgx_socket/htons.c \
@@ -54,7 +70,8 @@ SRC_FILES = $(TLS_SRC_FILES) \
 			../../common/verify_callback.cpp \
 
 # object files
-OBJ_FILES = $(TLS_OBJ_FILES) \
+OBJ_FILES = $(MASSTREE_OBJ_FILES) \
+			$(TLS_OBJ_FILES) \
 			cassa_server.o \
 			htonl.o \
 			htons.o \
@@ -79,7 +96,7 @@ build:
 		--search-path ../../common \
 		--search-path $(SGXSSL_PKG_PATH)/include
 
-	$(CXX) -c -DM_TLS_SERVER $(Enclave_Cpp_Flags) -I. -std=c++11 -include "tsgxsslio.h" ${SRC_FILES}
+	$(CXX) -c -DM_TLS_SERVER $(Enclave_Cpp_Flags) -I. -std=c++17 -include "tsgxsslio.h" ${SRC_FILES}
 	$(CC) -c $(Enclave_C_Flags) -I. cassa_server_t.c
 	$(CXX) -o $(ENC_CASSA_SERVER_Name) $(OBJ_FILES) $(Enclave_Link_Flags)  
 

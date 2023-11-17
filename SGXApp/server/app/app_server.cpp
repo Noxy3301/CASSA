@@ -26,7 +26,7 @@
 
 #include "sgx_urts.h"
 #include <stdio.h>
-#include "tls_server_u.h"
+#include "cassa_server_u.h"
 
 #define LOOP_OPTION "-server-in-loop"
 /* Global EID shared by multiple threads */

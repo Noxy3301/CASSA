@@ -13,8 +13,8 @@
 *_u.c
 
 # executables
-tls_client_host
-tls_server_host
+cassa_client_host
+cassa_server_host
 
 # sgxssl
 sgxssl/

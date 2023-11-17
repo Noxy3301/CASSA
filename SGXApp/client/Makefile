@@ -54,12 +54,12 @@
 all: build
 
 build:
-	$(MAKE) -C App
-	$(MAKE) -C Enclave
+	$(MAKE) -C app
+	$(MAKE) -C enclave
 
 clean:
-	$(MAKE) -C App clean
-	$(MAKE) -C Enclave clean
+	$(MAKE) -C app clean
+	$(MAKE) -C enclave clean
 
 run:
-	App/tls_client_host ./Enclave/tls_client_enclave.signed.so -server:localhost -port:12341
+	app/cassa_client_host ./enclave/cassa_client_enclave.signed.so -server:localhost -port:12341

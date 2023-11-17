@@ -31,61 +31,37 @@
 
 include ../../sgxenv.mk
 
-INCDIR := $(SGX_SDK)/include
-ENC_TLS_SERVER_Name := tls_server_enclave.so
-Signed_ENC_TLS_SERVER_Name := tls_server_enclave.signed.so
-Enclave_Test_Key := private_test_key.pem
-
-.PHONY: all build clean run
+INCDIR=$(SGX_SDK)/include
+SOCKETINCDIR = $(SOCKET_DIR)/include
+SSLINCDIR = $(SGXSSL_PKG_PATH)/include
+TLSINCDIR = $(SGXTLS_DIR)/include
 
 # source files
-SRC_FILES = Enclave.cpp \
-			../../sgx_socket/htonl.c \
-			../../sgx_socket/htons.c \
-			../../sgx_socket/trusted_sgx_socket.cpp \
-			../../common/err_msg.cpp \
-			../../common/openssl_utility.cpp \
-			../../common/tcommon.cpp \
-			../../common/utility.cpp \
-			../../common/verify_callback.cpp \
+SRC_FILES = app_client.cpp \
+            ../../sgx_socket/untrusted_sgx_socket.cpp \
+		    ../../common/ucommon.cpp
 
 # object files
-OBJ_FILES = Enclave.o \
-			htonl.o \
-			htons.o \
-			trusted_sgx_socket.o \
-			err_msg.o \
-			openssl_utility.o \
-			tcommon.o \
-			utility.o \
-			verify_callback.o \
-			tls_server_t.o 
+OBJ_FILES = app_client.o \
+	        untrusted_sgx_socket.o \
+	        cassa_client_u.o \
+	        ucommon.o
 
-all:
-	$(MAKE) build
-	$(MAKE) sign
+all: build
 
 build:
 	@ echo "Compilers used: $(CC), $(CXX)"
-	$(SGX_EDGER8R) ../tls_server.edl --trusted \
-		--search-path . \
+	$(SGX_EDGER8R) --untrusted ../cassa_client.edl \
 		--search-path $(INCDIR) \
-		--search-path $(SOCKET_DIR)/include \
-		--search-path ../../common \
-		--search-path $(SGXSSL_PKG_PATH)/include
+		--search-path . \
+		--search-path $(SOCKETINCDIR) \
+		--search-path $(SSLINCDIR) \
+		--search-path $(TLSINCDIR) \
+		--search-path ../../common
 
-	$(CXX) -c -DM_TLS_SERVER $(Enclave_Cpp_Flags) -I. -std=c++11 -include "tsgxsslio.h" ${SRC_FILES}
-	$(CC) -c $(Enclave_C_Flags) -I. tls_server_t.c
-	$(CXX) -o $(ENC_TLS_SERVER_Name) $(OBJ_FILES) $(Enclave_Link_Flags)  
-
-sign:
-ifeq ($(wildcard $(Enclave_Test_Key)),)
-	@echo "There is no enclave test key<Enclave_private_test.pem>."
-	@echo "The project will generate a key<Enclave_private_test.pem> for test."
-	@openssl genrsa -out $(Enclave_Test_Key) -3 3072
-endif
-	$(SGX_ENCLAVE_SIGNER) sign -key $(Enclave_Test_Key) -enclave $(ENC_TLS_SERVER_Name) \
-		-out $(Signed_ENC_TLS_SERVER_Name) -config server_enc.config.xml
+	$(CC) -c $(App_C_Flags) cassa_client_u.c
+	$(CXX) -c -DM_TLS_CLIENT $(App_Cpp_Flags) $(SRC_FILES)
+	$(CXX) -o cassa_client_host $(OBJ_FILES) $(App_Link_Flags)
 
 clean:
-	rm -f *.o $(ENC_TLS_SERVER_Name) $(Signed_ENC_TLS_SERVER_Name) tls_server_t.*
+	rm -f cassa_client_host *.o cassa_client_u.* cassa_client_args.h

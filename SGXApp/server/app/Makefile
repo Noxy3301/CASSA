@@ -31,37 +31,33 @@
 
 include ../../sgxenv.mk
 
-INCDIR=$(SGX_SDK)/include
-SOCKETINCDIR = $(SOCKET_DIR)/include
-SSLINCDIR = $(SGXSSL_PKG_PATH)/include
-TLSINCDIR = $(SGXTLS_DIR)/include
+INCDIR := $(SGX_SDK)/include
+SOCKET_INCDIR := $(SOCKET_DIR)/include
 
 # source files
-SRC_FILES = App.cpp \
-            ../../sgx_socket/untrusted_sgx_socket.cpp \
-		    ../../common/ucommon.cpp
+SRC_FILES = app_server.cpp \
+	        ../../sgx_socket/untrusted_sgx_socket.cpp \
+	        ../../common/ucommon.cpp
 
 # object files
-OBJ_FILES = App.o \
-	        untrusted_sgx_socket.o \
-	        tls_client_u.o \
-	        ucommon.o
+OBJ_FILES = untrusted_sgx_socket.o \
+            cassa_server_u.o \
+		    app_server.o \
+		    ucommon.o
 
 all: build
 
 build:
 	@ echo "Compilers used: $(CC), $(CXX)"
-	$(SGX_EDGER8R) --untrusted ../tls_client.edl \
+	$(SGX_EDGER8R) ../cassa_server.edl --untrusted \
 		--search-path $(INCDIR) \
-		--search-path . \
-		--search-path $(SOCKETINCDIR) \
-		--search-path $(SSLINCDIR) \
-		--search-path $(TLSINCDIR) \
-		--search-path ../../common
-
-	$(CC) -c $(App_C_Flags) tls_client_u.c
-	$(CXX) -c -DM_TLS_CLIENT $(App_Cpp_Flags) $(SRC_FILES)
-	$(CXX) -o tls_client_host $(OBJ_FILES) $(App_Link_Flags)
+		--search-path ../../common \
+		--search-path $(SOCKET_INCDIR) \
+		--search-path $(SGXSSL_PKG_PATH)/include
+	
+	$(CC) -c $(App_C_Flags) cassa_server_u.c
+	$(CXX) -c -DM_TLS_SERVER $(App_Cpp_Flags) $(SRC_FILES)
+	$(CXX) -o cassa_server_host $(OBJ_FILES) $(App_Link_Flags)
 
 clean:
-	rm -f tls_client_host *.o tls_client_u.* tls_client_args.h
+	rm -f cassa_server_host* *.o cassa_server_u.* cassa_server_args.h

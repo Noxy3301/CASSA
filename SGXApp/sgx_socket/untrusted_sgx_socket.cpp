@@ -33,9 +33,9 @@
 
 #include <unistd.h>
 #ifdef M_TLS_SERVER
-#include "../server/App/tls_server_u.h"
+#include "../server/app/cassa_server_u.h"
 #else
-#include "../client/App/tls_client_u.h"
+#include "../client/app/cassa_client_u.h"
 #endif
 
 /* ocalls to use socket APIs , call socket syscalls */

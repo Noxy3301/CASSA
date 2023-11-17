@@ -33,9 +33,9 @@
 #include <stdio.h>
 #include "utility.h"
 #ifdef M_TLS_SERVER
-#include "tls_server_t.h"
+#include "cassa_server_t.h"
 #else
-#include "tls_client_t.h"
+#include "cassa_client_t.h"
 #endif
 /*
  * printf:

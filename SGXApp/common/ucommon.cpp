@@ -29,50 +29,32 @@
  *
  */
 
-#include "Enclave.h"
-#include "Enclave_t.h" /* print_string */
-#include <stdarg.h>
-#include <stdio.h> /* vsnprintf */
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#ifdef M_TLS_SERVER
+#include "../server/host/tls_server_u.h"
+#else
+#include "../client/host/tls_client_u.h"
+#endif
 
-#include <string>
-
-#include "../../sandbox/nlohman_json/json.hpp"
-
-using json = nlohmann::json;
-
-/* 
- * printf: 
- *   Invokes OCALL to display the enclave buffer to the terminal.
- */
-int printf(const char* fmt, ...)
+int ocall_close(int fd)
 {
-    char buf[BUFSIZ] = { '\0' };
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, BUFSIZ, fmt, ap);
-    va_end(ap);
-    ocall_print_string(buf);
-    return (int)strnlen(buf, BUFSIZ - 1) + 1;
+    return close(fd);
 }
 
-void test() {
-    // JSONオブジェクトの作成
-    json j;
-    j["pi"] = 3.141;
-    j["happy"] = true;
-    j["name"] = "Niels";
-    j["nothing"] = nullptr;
-    j["answer"]["everything"] = 42;
-    j["list"] = { 1, 0, 2 };
-    j["object"] = { {"currency", "USD"}, {"value", 42.99} };
-    
-    // JSONオブジェクトを文字列にシリアライズ
-    std::string json_str = j.dump();
-    
-    // 文字列を再びJSONオブジェクトにデシリアライズ
-    json j2 = json::parse(json_str);
-    
-    // 文字列をprintfで出力
-    printf("%s\n", json_str.c_str());
+void ocall_get_current_time(uint64_t *p_current_time)
+{
+    time_t rawtime;
+    time (&rawtime);
+
+    if (!p_current_time)
+        return;
+    *p_current_time = (uint64_t) rawtime;
+}
+
+
+void ocall_print_string(const char *str)
+{
+    printf("%s", str);
 }

@@ -29,22 +29,16 @@
  *
  */
 
-/* Enclave.edl - Top EDL file. */
-
 enclave {
-    
-    include "user_types.h" /* buffer_t */
+    from "sgx_tstdc.edl" import *;
+    from "sgx_socket.edl" import *;
+    from "enclave.edl" import *;
+    from "sgx_tsgxssl.edl" import *;
+    from "sgx_ttls.edl" import *;
+    from "sgx_pthread.edl" import *;
 
-    /* 
-     * ocall_print_string - invokes OCALL to display string buffer inside the enclave.
-     *  [in]: copy the string buffer to App outside.
-     *  [string]: specifies 'str' is a NULL terminated buffer.
-     */
-    untrusted {
-        void ocall_print_string([in, string] const char *str);
-    };
+    include "sgx_ttls.h"
     trusted {
-        public void test();
+        public int set_up_tls_server([in, string] char* port, int keep_server_up);
     };
-
 };

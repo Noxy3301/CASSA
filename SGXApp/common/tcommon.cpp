@@ -29,20 +29,29 @@
  *
  */
 
-#ifndef _ENCLAVE_H_
-#define _ENCLAVE_H_
-
-#include <assert.h>
-#include <stdlib.h>
-
-#if defined(__cplusplus)
-extern "C" {
+#include <stdarg.h>
+#include <stdio.h>
+#include "utility.h"
+#ifdef M_TLS_SERVER
+#include "tls_server_t.h"
+#else
+#include "tls_client_t.h"
 #endif
-
-int printf(const char* fmt, ...);
-
-#if defined(__cplusplus)
+/*
+ * printf:
+ *   Invokes OCALL to display the enclave buffer to the terminal.
+ */
+void t_print(const char *fmt, ...)
+{
+    char buf[BUFSIZ] = {'\0'};
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, BUFSIZ, fmt, ap);
+    va_end(ap);
+    ocall_print_string(buf);
 }
-#endif
 
-#endif /* !_ENCLAVE_H_ */
+void t_time(time_t *current_t)
+{
+    ocall_get_current_time((uint64_t*)current_t);
+}

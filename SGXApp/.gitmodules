@@ -1,0 +1,4 @@
+[submodule "sgxssl"]
+	path = sgxssl
+	url = https://github.com/intel/intel-sgx-ssl
+	branch = support_tls_openssl3

@@ -29,41 +29,37 @@
 #
 #
 
+# MIT License
+#
+# Copyright (c) Open Enclave SDK contributors.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE
 
-include ./sgxenv.mk
+all: build
 
-.PHONY: all PREPARE_SGX_SSL build clean run
-
-all: build 
-
-# make sgxssl lib beforehand
-PREPARE_SGXSSL := ./prepare_sgxssl.sh
-SGXSSL_HEADER_CHECK := $(SGXSSL_PKG_PATH)/include/openssl/opensslconf.h
-PREPARE_SGX_SSL:
-	@chmod 755 $(PREPARE_SGXSSL)
-	@test -f $(SGXSSL_PKG_PATH)/lib64/lib$(OpenSSL_Crypto_Library_Name).a && test -f $(SGXSSL_PKG_PATH)/lib64/lib$(OpenSSL_SSL_Library_Name).a && test -f $(SGXSSL_PKG_PATH)/lib64/lib$(SGXSSL_Library_Name).a && test -f $(SGXSSL_HEADER_CHECK) || $(PREPARE_SGXSSL)
-	@$(info "NOTE: sgxssl prepared")
-
-$(SGXSSL_HEADER_CHECK) : PREPARE_SGX_SSL
-
-build: $(SGXSSL_HEADER_CHECK)
-	$(MAKE) -C server
-	$(MAKE) -C client
+build:
+	$(MAKE) -C enc
+	$(MAKE) -C host
 
 clean:
-	$(MAKE) -C server clean
-	$(MAKE) -C client clean
+	$(MAKE) -C enc clean
+	$(MAKE) -C host clean
 
 run:
-	echo "Launch processes to establish an Attested TLS between two enclaves"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12341 &
-	sleep 2
-	./client/host/tls_client_host ./client/enc/tls_client_enclave.signed.so -server:localhost -port:12341
-	echo "Launch processes to establish an Attested TLS between an non-encalve TLS client and an TLS server running inside an enclave"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12345 &
-	sleep 2
-	./non_enc_client/tls_non_enc_client -server:localhost -port:12345
-
-run-server-in-loop:
-	echo "Launch long-running Attested TLS server"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12341 -server-in-loop
+	host/tls_server_host ./enc/tls_server_enclave.signed.so -port:12341 -server-in-loop

@@ -29,41 +29,28 @@
 #
 #
 
+include ../../sgxenv.mk
 
-include ./sgxenv.mk
+INCDIR=$(SGX_SDK)/include
+SOCKETINCDIR = $(SOCKET_DIR)/include
+SSLINCDIR = $(SGXSSL_PKG_PATH)/include
+TLSINCDIR = $(SGXTLS_DIR)/include
 
-.PHONY: all PREPARE_SGX_SSL build clean run
+all: build
 
-all: build 
+build:
+	@ echo "Compilers used: $(CC), $(CXX)"
+	$(SGX_EDGER8R) --untrusted ../tls_client.edl \
+		--search-path $(INCDIR) \
+		--search-path . \
+		--search-path $(SOCKETINCDIR) \
+		--search-path $(SSLINCDIR) \
+		--search-path $(TLSINCDIR) \
+		--search-path ../../common
 
-# make sgxssl lib beforehand
-PREPARE_SGXSSL := ./prepare_sgxssl.sh
-SGXSSL_HEADER_CHECK := $(SGXSSL_PKG_PATH)/include/openssl/opensslconf.h
-PREPARE_SGX_SSL:
-	@chmod 755 $(PREPARE_SGXSSL)
-	@test -f $(SGXSSL_PKG_PATH)/lib64/lib$(OpenSSL_Crypto_Library_Name).a && test -f $(SGXSSL_PKG_PATH)/lib64/lib$(OpenSSL_SSL_Library_Name).a && test -f $(SGXSSL_PKG_PATH)/lib64/lib$(SGXSSL_Library_Name).a && test -f $(SGXSSL_HEADER_CHECK) || $(PREPARE_SGXSSL)
-	@$(info "NOTE: sgxssl prepared")
-
-$(SGXSSL_HEADER_CHECK) : PREPARE_SGX_SSL
-
-build: $(SGXSSL_HEADER_CHECK)
-	$(MAKE) -C server
-	$(MAKE) -C client
+	$(CC) -c $(App_C_Flags) tls_client_u.c
+	$(CXX) -c -DM_TLS_CLIENT $(App_Cpp_Flags) host.cpp ../../sgx_socket/untrusted_sgx_socket.cpp ../../common/ucommon.cpp
+	$(CXX) -o tls_client_host host.o untrusted_sgx_socket.o tls_client_u.o ucommon.o $(App_Link_Flags)
 
 clean:
-	$(MAKE) -C server clean
-	$(MAKE) -C client clean
-
-run:
-	echo "Launch processes to establish an Attested TLS between two enclaves"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12341 &
-	sleep 2
-	./client/host/tls_client_host ./client/enc/tls_client_enclave.signed.so -server:localhost -port:12341
-	echo "Launch processes to establish an Attested TLS between an non-encalve TLS client and an TLS server running inside an enclave"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12345 &
-	sleep 2
-	./non_enc_client/tls_non_enc_client -server:localhost -port:12345
-
-run-server-in-loop:
-	echo "Launch long-running Attested TLS server"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12341 -server-in-loop
+	rm -f tls_client_host *.o tls_client_u.* tls_client_args.h

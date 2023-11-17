@@ -29,41 +29,24 @@
 #
 #
 
+include ../../sgxenv.mk
 
-include ./sgxenv.mk
+INCDIR := $(SGX_SDK)/include
+SOCKET_INCDIR := $(SOCKET_DIR)/include
 
-.PHONY: all PREPARE_SGX_SSL build clean run
+all: build
 
-all: build 
-
-# make sgxssl lib beforehand
-PREPARE_SGXSSL := ./prepare_sgxssl.sh
-SGXSSL_HEADER_CHECK := $(SGXSSL_PKG_PATH)/include/openssl/opensslconf.h
-PREPARE_SGX_SSL:
-	@chmod 755 $(PREPARE_SGXSSL)
-	@test -f $(SGXSSL_PKG_PATH)/lib64/lib$(OpenSSL_Crypto_Library_Name).a && test -f $(SGXSSL_PKG_PATH)/lib64/lib$(OpenSSL_SSL_Library_Name).a && test -f $(SGXSSL_PKG_PATH)/lib64/lib$(SGXSSL_Library_Name).a && test -f $(SGXSSL_HEADER_CHECK) || $(PREPARE_SGXSSL)
-	@$(info "NOTE: sgxssl prepared")
-
-$(SGXSSL_HEADER_CHECK) : PREPARE_SGX_SSL
-
-build: $(SGXSSL_HEADER_CHECK)
-	$(MAKE) -C server
-	$(MAKE) -C client
+build:
+	@ echo "Compilers used: $(CC), $(CXX)"
+	$(SGX_EDGER8R) ../tls_server.edl --untrusted \
+		--search-path $(INCDIR) \
+		--search-path ../../common \
+		--search-path $(SOCKET_INCDIR) \
+		--search-path $(SGXSSL_PKG_PATH)/include
+	
+	$(CC) -c $(App_C_Flags) tls_server_u.c
+	$(CXX) -c -DM_TLS_SERVER $(App_Cpp_Flags) host.cpp ../../sgx_socket/untrusted_sgx_socket.cpp ../../common/ucommon.cpp
+	$(CXX) -o tls_server_host untrusted_sgx_socket.o tls_server_u.o host.o ucommon.o $(App_Link_Flags)
 
 clean:
-	$(MAKE) -C server clean
-	$(MAKE) -C client clean
-
-run:
-	echo "Launch processes to establish an Attested TLS between two enclaves"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12341 &
-	sleep 2
-	./client/host/tls_client_host ./client/enc/tls_client_enclave.signed.so -server:localhost -port:12341
-	echo "Launch processes to establish an Attested TLS between an non-encalve TLS client and an TLS server running inside an enclave"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12345 &
-	sleep 2
-	./non_enc_client/tls_non_enc_client -server:localhost -port:12345
-
-run-server-in-loop:
-	echo "Launch long-running Attested TLS server"
-	./server/host/tls_server_host ./server/enc/tls_server_enclave.signed.so -port:12341 -server-in-loop
+	rm -f tls_server_host* *.o tls_server_u.* tls_server_args.h

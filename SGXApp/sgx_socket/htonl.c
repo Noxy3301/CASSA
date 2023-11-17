@@ -29,68 +29,11 @@
  *
  */
 
+#include <netinet/in.h>
+#include <byteswap.h>
 
-#include <stdio.h>
-#include <string.h>
-#include <assert.h>
-
-# include <unistd.h>
-# include <pwd.h>
-# define MAX_PATH FILENAME_MAX
-
-#include "sgx_urts.h"
-#include "App.h"
-#include "Enclave_u.h"
-
-#include "utils/sgx_util.h"
-
-/* Global EID shared by multiple threads */
-sgx_enclave_id_t global_eid = 0;
-
-/* Initialize the enclave:
- *   Call sgx_create_enclave to initialize an enclave instance
- */
-int initialize_enclave(void) {
-    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-    
-    /* Call sgx_create_enclave to initialize an enclave instance */
-    /* Debug Support: set 2nd parameter to 1 */
-    ret = sgx_create_enclave(ENCLAVE_FILENAME, SGX_DEBUG_FLAG, NULL, NULL, &global_eid, NULL);
-    if (ret != SGX_SUCCESS) {
-        print_error_message(ret);
-        return -1;
-    }
-
-    return 0;
+uint32_t htonl(uint32_t n)
+{
+	union { int i; char c; } u = { 1 };
+	return u.c ? bswap_32(n) : n;
 }
-
-/* OCall functions */
-void ocall_print_string(const char *str) {
-    /* Proxy/Bridge will check the length and null-terminate 
-     * the input string to prevent buffer overflow. 
-     */
-    printf("%s", str);
-}
-
-
-/* Application entry */
-int SGX_CDECL main() {
-    /* Initialize the enclave */
-    if(initialize_enclave() < 0) {
-        printf("Enter a character before exit ...\n");
-        getchar();
-        return -1; 
-    }
-
-    test(global_eid);
- 
-    /* Destroy the enclave */
-    sgx_destroy_enclave(global_eid);
-    
-    printf("Info: SampleEnclave successfully returned.\n");
-
-    printf("Enter a character before exit ...\n");
-    getchar();
-    return 0;
-}
-

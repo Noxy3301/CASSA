@@ -1,0 +1,20 @@
+# Object files
+*.o
+
+# Shared object files
+*.so
+
+# SGX generated trusted proxy files
+*_t.h
+*_t.c
+
+# SGX generated untrusted proxy files
+*_u.h
+*_u.c
+
+# executables
+tls_client_host
+tls_server_host
+
+# sgxssl
+sgxssl/

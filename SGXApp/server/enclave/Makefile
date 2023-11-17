@@ -38,8 +38,12 @@ Enclave_Test_Key := private_test_key.pem
 
 .PHONY: all build clean run
 
+TLS_SRC_FILES = openssl_server/tls_server.cpp
+TLS_OBJ_FILES = tls_server.o
+
 # source files
-SRC_FILES = cassa_server.cpp \
+SRC_FILES = $(TLS_SRC_FILES) \
+			cassa_server.cpp \
 			../../sgx_socket/htonl.c \
 			../../sgx_socket/htons.c \
 			../../sgx_socket/trusted_sgx_socket.cpp \
@@ -50,7 +54,8 @@ SRC_FILES = cassa_server.cpp \
 			../../common/verify_callback.cpp \
 
 # object files
-OBJ_FILES = cassa_server.o \
+OBJ_FILES = $(TLS_OBJ_FILES) \
+			cassa_server.o \
 			htonl.o \
 			htons.o \
 			trusted_sgx_socket.o \

@@ -39,14 +39,12 @@
 
 int verify_callback(int preverify_ok, X509_STORE_CTX* ctx);
 
-extern "C"
-{
+extern "C" {
     int set_up_tls_server(char* server_port, bool keep_server_up);
     sgx_status_t ocall_close(int *ret, int fd);
 };
 
-int create_listener_socket(int port, int& server_socket)
-{
+int create_listener_socket(int port, int& server_socket) {
     int ret = -1;
     const int reuse = 1;
     struct sockaddr_in addr;
@@ -55,31 +53,22 @@ int create_listener_socket(int port, int& server_socket)
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket < 0)
-    {
+    if (server_socket < 0) {
         t_print(TLS_SERVER "socket creation failed\n");
         goto exit;
     }
 
-    if (setsockopt(
-            server_socket,
-            SOL_SOCKET,
-            SO_REUSEADDR,
-            (const void*)&reuse,
-            sizeof(reuse)) < 0)
-    {
+    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (const void*)&reuse, sizeof(reuse)) < 0) {
         t_print(TLS_SERVER "setsocket failed \n");
         goto exit;
     }
 
-    if (bind(server_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0)
-    {
+    if (bind(server_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         t_print(TLS_SERVER "Unable to bind socket to the port\n");
         goto exit;
     }
 
-    if (listen(server_socket, 20) < 0)
-    {
+    if (listen(server_socket, 20) < 0) {
         t_print(TLS_SERVER "Unable to open socket for listening\n");
         goto exit;
     }

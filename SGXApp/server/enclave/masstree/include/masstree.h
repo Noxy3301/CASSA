@@ -3,7 +3,7 @@
 #include "masstree_insert.h"
 #include "masstree_get.h"
 #include "masstree_remove.h"
-#include "../../utils/status.h"
+#include "../../cassa_common/status.h"
 
 class Masstree {
     public:

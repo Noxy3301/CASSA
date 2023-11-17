@@ -7,9 +7,10 @@
 #include <algorithm>
 #include <mutex>
 #include <optional>
+#include <array>
 
-#include "../../utils/atomic_wrapper.h"
-#include "../../utils/db_value.h"
+#include "../../cassa_common/atomic_wrapper.h"
+#include "../../cassa_common/db_value.h"
 #include "masstree_version.h"
 #include "masstree_key.h"
 #include "permutation.h"
@@ -217,13 +218,13 @@ class InteriorNode : public Node {
             return !isNotFull();
         }
         // bool debug_has_skip
-        void printNode() const {
-            printf("/");
-            for(size_t i = 0; i < ORDER - 1; ++i){
-                printf("%lu/", getKeySlice(i));
-            }
-            printf("\\\n");
-        }
+        // void printNode() const {
+        //     printf("/");
+        //     for(size_t i = 0; i < ORDER - 1; ++i){
+        //         printf("%lu/", getKeySlice(i));
+        //     }
+        //     printf("\\\n");
+        // }
 
         // 指定された子ノードのインデックスを検索
         size_t findChildIndex(Node *arg_child) const {
@@ -551,13 +552,13 @@ class BorderNode : public Node {
             assert(false);
         }
 
-        void printNode() const {
-        printf("|");
-        for(size_t i = 0; i < ORDER - 1; ++i){
-            printf("%lu|", getKeySlice(i));
-        }
-        printf("\n");
-        }
+        // void printNode() const {
+        // printf("|");
+        // for(size_t i = 0; i < ORDER - 1; ++i){
+        //     printf("%lu|", getKeySlice(i));
+        // }
+        // printf("\n");
+        // }
 
         // splitをするとき簡略化のためにsortを行う(BorderNode, permutationどっちも)
         void sort() {

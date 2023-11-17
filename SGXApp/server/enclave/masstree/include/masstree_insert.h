@@ -1,8 +1,10 @@
 #pragma once
 
+#include <unistd.h> // for ssize_t
+
 #include "masstree_node.h"
 #include "masstree_gc.h"
-#include "../../utils/status.h"
+#include "../../cassa_common/status.h"
 
 BorderNode *start_new_tree(const Key &key, Value *value);
 

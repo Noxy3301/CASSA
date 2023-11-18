@@ -3,7 +3,7 @@
 #include <atomic>
 #include <map>
 
-#include "../../../../common/cassa/consts.h"
+#include "../../cassa_common/consts.h"
 #include "silo_util.h"
 #include "silo_log_buffer.h"
 

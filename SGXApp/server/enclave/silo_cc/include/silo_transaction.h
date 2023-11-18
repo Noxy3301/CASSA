@@ -4,11 +4,11 @@
 #include <cstdint>
 #include <algorithm>
 
-#include "../../utils/status.h"
-#include "../../utils/db_key.h"
-#include "../../utils/db_value.h"
-#include "../../utils/db_tid.h"
-#include "../../utils/atomic_wrapper.h"
+#include "../../cassa_common/status.h"
+#include "../../cassa_common/db_key.h"
+#include "../../cassa_common/db_value.h"
+#include "../../cassa_common/db_tid.h"
+#include "../../cassa_common/atomic_wrapper.h"
 
 
 #include "silo_element.h"
@@ -72,7 +72,7 @@ public:
     // トランザクションの操作
     Status insert(std::string &str_key, std::string &str_value);
     // void tx_delete(Key &key); // キーの削除
-    Status read(std::string &str_key, std::string *retrun_value);
+    Status read(std::string &str_key, std::string &retrun_value);
     Status read_internal(Key &key, Value *value);
     Status write(std::string &str_key, std::string &str_value);
     // Status scan(Key &left_key, bool l_exclusive, Key &right_key, bool r_exclusive, std::vector<Value *> &result); // キーの範囲スキャン

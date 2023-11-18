@@ -28,6 +28,13 @@
 #include <stdio.h>
 #include "cassa_server_u.h"
 
+// logfile生成用
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <fstream> //filestream
+#include <ostream>
+#include <string>
+
 #define LOOP_OPTION "-server-in-loop"
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t server_global_eid = 0;
@@ -75,6 +82,29 @@ void print_error_message(sgx_status_t ret)
 
     if (idx == ttl)
         printf("Error code is 0x%X. Please refer to the \"Intel SGX SDK Developer Reference\" for more details.\n", ret);
+}
+
+void write_sealData(std::string filePath, const uint8_t* sealed_data, const size_t sealed_size) {
+    std::ofstream file(filePath, std::ios::out | std::ios::binary);
+    if (file.fail()) {
+        perror("file open failed");
+        abort();
+    }
+    file.write((const char*)sealed_data, sealed_size);
+    file.close();
+}
+
+int ocall_save_logfile(const uint8_t* sealed_data, const size_t sealed_size) {
+    int thid = 0;   // TODO: セッションがどのファイルに書き込むかを検討する
+    std::string filePath = "logs/log" + std::to_string(thid) + ".seal";
+    write_sealData(filePath, sealed_data, sealed_size);
+    return 0;
+}
+
+int ocall_save_pepochfile(const uint8_t* sealed_data, const size_t sealed_size) {
+    std::string filePath = "logs/pepoch.seal";
+    write_sealData(filePath, sealed_data, sealed_size);
+    return 0;
 }
 
 sgx_status_t initialize_enclave(const char *enclave_path) {

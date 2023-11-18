@@ -6,7 +6,7 @@
 #include <atomic>
 #include <memory>   // for std::align
 
-#include "../../../../common/cassa/consts.h"
+#include "../../cassa_common/consts.h"
 
 #include "silo_element.h"
 #include "silo_log_queue.h"

@@ -1,5 +1,5 @@
 #include "include/silo_logger.h"
-#include <sys/stat.h>   // stat, mkdir
+// #include <sys/stat.h>   // stat, mkdir
 
 /**
  * @brief Adds a transaction executor to the logger and configures it.
@@ -59,7 +59,7 @@ void Logger::logging(bool quit) {
         log_buffer->pass_nid(nid_buffer_);
         log_buffer->return_buffer();
     }
-    logfile_.sync();
+    // logfile_.sync(); // TODO: SGXでは使ってないからコメントアウトしているけど問題ないんだっけ？
 
     write_end_ = rdtscp();
     write_latency_ += write_end_ - t;
@@ -148,17 +148,6 @@ void Logger::wait_deq() {
  * - Finalizes logging and notifies of the logger's end, storing results afterward.
  */
 void Logger::worker() {
-    // logging機構
-    logdir_ = "log" + std::to_string(thid_);
-    struct stat statbuf;
-    if (::stat(logdir_.c_str(), &statbuf)) {    // std::string -> const char*, exist => 0, non-exist => -1
-        if (::mkdir(logdir_.c_str(), 0755)) printf("ERR!"); //TODO: ERRの対処   // exist => 0, non-exist => -1
-    } else {
-        if ((statbuf.st_mode & S_IFMT) != S_IFDIR) printf("ERR!"); //TODO: ERRの対処 // (アクセス保護)&(ファイル種別を表すBitMask) != (ディレクトリ)
-    }
-    logpath_ = logdir_ + "/data.log";
-    logfile_.open(logpath_);
-
     for (;;) {
         std::uint64_t t = rdtscp();
         wait_deq();

@@ -1,9 +1,8 @@
 #pragma once
 
-#include "../../utils/db_key.h"
-#include "../../utils/db_value.h"
-
-#include "../../../../common/cassa/structures.h"
+#include "../../cassa_common/db_key.h"
+#include "../../cassa_common/db_value.h"
+#include "../../cassa_common/structures.h"
 
 class Procedure {
     public:

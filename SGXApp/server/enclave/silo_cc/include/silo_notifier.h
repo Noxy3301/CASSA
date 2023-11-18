@@ -8,7 +8,7 @@
 #include <condition_variable>
 
 #include "silo_tsc.h"
-#include "../../utils/db_tid.h"
+#include "../../cassa_common/db_tid.h"
 
 class PepochFile {  // A:siloRでpepochを書き出しているのでそれに則っているらしい
 public:

@@ -1,12 +1,14 @@
 #include "include/silo_notifier.h"
 
-#include <iostream> // TODO: std::cerr周りで使っているけど将来的には消す
-#include <fcntl.h>      // open用
-#include <unistd.h>     // write用
-#include <sys/mman.h>   // mmap用
+// #include <iostream> // TODO: std::cerr周りで使っているけど将来的には消す
+// #include <fcntl.h>      // open用
+// #include <unistd.h>     // write用
+// #include <sys/mman.h>   // mmap用
 
 #include "../global_variables.h"
 #include "include/silo_logger.h"
+
+#include "../cassa_server_t.h"  // for ocall_save_pepochfile
 
 /**
  * @brief Opens and maps a file to memory.
@@ -14,22 +16,22 @@
  * @note O_CREAT is used to create a new file if it does not exist. O_TRUNC is used to truncate the file to zero length
  */
 void PepochFile::open() {
-    fd_ = ::open(file_name_.c_str(), O_CREAT|O_TRUNC|O_RDWR, 0644);
-    if (fd_ == -1) {    // fd_は失敗したら-1になる(初期値も-1だけど何かしらの要因で事故ったらここに落ち着く)
-        std::cerr << "open failed: " << file_name_ << std::endl;
-        printf("ERR!");    //TODO: ERRの対処
-    }
-    std::uint64_t zero = 0;
-    auto sz = ::write(fd_, &zero, sizeof(std::uint64_t));
-    if (sz == -1) {
-        std::cerr << "write failed";
-        printf("ERR!");    //TODO: ERRの対処
-    }
-    addr_ = (std::uint64_t*)::mmap(NULL, sizeof(std::uint64_t), PROT_WRITE, MAP_SHARED, fd_, 0);
-    if (addr_ == MAP_FAILED) {
-        std::cerr << "mmap failed";
-        printf("ERR!");    //TODO: ERRの対処
-    }
+    // fd_ = ::open(file_name_.c_str(), O_CREAT|O_TRUNC|O_RDWR, 0644);
+    // if (fd_ == -1) {    // fd_は失敗したら-1になる(初期値も-1だけど何かしらの要因で事故ったらここに落ち着く)
+    //     std::cerr << "open failed: " << file_name_ << std::endl;
+    //     printf("ERR!");    //TODO: ERRの対処
+    // }
+    // std::uint64_t zero = 0;
+    // auto sz = ::write(fd_, &zero, sizeof(std::uint64_t));
+    // if (sz == -1) {
+    //     std::cerr << "write failed";
+    //     printf("ERR!");    //TODO: ERRの対処
+    // }
+    // addr_ = (std::uint64_t*)::mmap(NULL, sizeof(std::uint64_t), PROT_WRITE, MAP_SHARED, fd_, 0);
+    // if (addr_ == MAP_FAILED) {
+    //     std::cerr << "mmap failed";
+    //     printf("ERR!");    //TODO: ERRの対処
+    // }
 }
 
 /**
@@ -38,17 +40,29 @@ void PepochFile::open() {
  * @param epoch The epoch to write.
  */
 void PepochFile::write(std::uint64_t epoch) {
-    *addr_ = epoch;
-    ::msync(addr_, sizeof(std::uint64_t), MS_SYNC);
+    int ocall_ret;
+    sgx_status_t res, ocall_status;
+    size_t size = sizeof(uint64_t);
+    size_t sealed_size = sizeof(sgx_sealed_data_t) + size;
+    uint8_t* sealed_data = (uint8_t*)malloc(sealed_size);
+    // sgx_seal_data(0, NULL, plaintext_len, plaintext, ciph_size, (sgx_sealed_data_t *) sealed);
+    res = sgx_seal_data(0, NULL, size, (uint8_t*)&epoch, sealed_size, (sgx_sealed_data_t*)sealed_data);
+    assert(res == SGX_SUCCESS);
+    ocall_status = ocall_save_pepochfile(&ocall_ret, sealed_data, sealed_size);
+    free(sealed_data);
+
+    // TODO: エラー表示
+    // if (ocall_ret != 0) printf("ERR! ocall_ret != 0\n");
+    // if (ocall_status != SGX_SUCCESS) printf("ERR! ocall_status != SGX_SUCCESS\n");
 }
 
 /**
  * @brief Closes the file which stores the (durable) epoch.
  */
 void PepochFile::close() {
-    ::munmap(addr_, sizeof(std::uint64_t));
-    ::close(fd_);
-    fd_ = -1;
+    // ::munmap(addr_, sizeof(std::uint64_t));
+    // ::close(fd_);
+    // fd_ = -1;
 }
 
 

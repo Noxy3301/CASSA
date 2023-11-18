@@ -29,17 +29,10 @@
  *
  */
 
+// ocall for untrusted functions 
 enclave {
-    from "sgx_tstdc.edl" import *;
-    from "sgx_socket.edl" import *;
-    from "enclave.edl" import *;
-    from "sgx_tsgxssl.edl" import *;
-    from "sgx_ttls.edl" import *;
-    from "sgx_pthread.edl" import *;
-    from "app_server.edl" import *;
-
-    include "sgx_ttls.h"
-    trusted {
-        public int set_up_tls_server([in, string] char* port, int keep_server_up);
+    untrusted {
+        int ocall_save_logfile([in, size=sealed_size]const uint8_t* sealed_data, size_t sealed_size);
+        int ocall_save_pepochfile([in, size=sealed_size]const uint8_t* sealed_data, size_t sealed_size);
     };
 };

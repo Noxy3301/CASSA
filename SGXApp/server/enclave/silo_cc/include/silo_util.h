@@ -7,7 +7,7 @@
 // #include "random.h"
 
 #include "silo_tsc.h"
-#include "../../../../common/cassa/consts.h"
+#include "../../cassa_common/consts.h"
 #include "../../global_variables.h"
 
 inline uint64_t atomicLoadGE() {

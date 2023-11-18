@@ -66,8 +66,7 @@ static sgx_errlist_t sgx_errlist[] = {
 };
 
 /* Check error conditions for loading enclave */
-void print_error_message(sgx_status_t ret)
-{
+void print_error_message(sgx_status_t ret) {
     size_t idx = 0;
     size_t ttl = sizeof sgx_errlist/sizeof sgx_errlist[0];
 

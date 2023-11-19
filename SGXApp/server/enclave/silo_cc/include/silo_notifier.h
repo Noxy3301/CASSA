@@ -55,7 +55,7 @@ public:
     uint64_t epoch_;
     std::vector<NotificationId> buffer_;
     NidBufferItem *next_ = NULL;
-    NidBufferItem(uint64_t epoch) : epoch_(epoch) { buffer_.reserve(4096); } // TODO: ここメモリ領域確保しすぎて爆発していたけど、なんでreserveしているんだっけ？
+    NidBufferItem(uint64_t epoch) : epoch_(epoch) { buffer_.reserve(512); } // TODO: ここメモリ領域確保しすぎて爆発していたけど、なんでreserveしているんだっけ？
 };
 
 // TODO:コピペだから理解する、というか要らないかも

@@ -207,8 +207,8 @@ int main(int argc, const char* argv[]) {
 
     // LoggerAffinity affin;
     // affin.init(worker_num, logger_num);
-    // size_t w_thid = 0;  // Workerのthread ID
-    // size_t l_thid = 0;  // Loggerのthread ID, Workerのgroup IDとしても機能する
+    size_t w_thid = 0;  // Workerのthread ID
+    size_t l_thid = 0;  // Loggerのthread ID, Workerのgroup IDとしても機能する
 
     /* Check argument count */
     if (argc == 4) {
@@ -257,15 +257,14 @@ int main(int argc, const char* argv[]) {
     //         worker_threads.emplace_back(launch_worker_thread, w_thid, l_thid);
     //     }
     // }
+
+    printf("\n[Initialize CASSA settings]\n");
+    ecall_initialize_global_variables(server_global_eid, 1, 1);
     
-    // printf("\n[Launching logger thread]\n");
-    // for (size_t l_thid = 0; l_thid < logger_num; l_thid++) {
-    //     logger_threads.emplace_back(launch_logger_thread, l_thid);
-    // }
-
-    // #include <chrono>
-
-    // std::this_thread::sleep_for(std::chrono::seconds(5));
+    printf("\n[Launching logger thread]\n");
+    for (size_t l_thid = 0; l_thid < logger_num; l_thid++) {
+        logger_threads.emplace_back(launch_logger_thread, l_thid);
+    }
 
     printf("\n[Launching TLS server enclave]\n");
     result = set_up_tls_server(server_global_eid, &ret, server_port, keep_server_up);

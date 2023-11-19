@@ -73,9 +73,23 @@ Notifier notifier;                         // 通知オブジェクト, スレ�
 
 Masstree masstree;
 
-// for debug
-size_t num_worker_threads = 1;
-size_t num_logger_threads = 1;
+// // for debug
+size_t num_worker_threads;
+size_t num_logger_threads;
+
+void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {
+    // Global epochを初期化する
+    // TODO: pepochから読み込むようにする
+
+    ThLocalEpoch.resize(worker_num);
+    CTIDW.resize(worker_num);
+    ThLocalDurableEpoch.resize(logger_num);
+    workerResults.resize(worker_num);
+    loggerResults.resize(logger_num);
+
+    num_worker_threads = worker_num;
+    num_logger_threads = logger_num;
+}
 
 void ecall_logger_thread_work(size_t logger_thid) {
     Logger logger(logger_thid, std::ref(notifier), std::ref(loggerResults[logger_thid]));

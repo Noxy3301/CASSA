@@ -20,7 +20,7 @@ public:
     ~PepochFile() { if (fd_ != -1) close(); }
 
 private:
-    std::string file_name_ = "log0/pepoch";
+    std::string file_name_ = "logs/pepoch";
     uint64_t *addr_;
     int fd_ = -1;
 };
@@ -33,7 +33,7 @@ public:
     uint64_t tx_logging_time_ = 0;  // transaction logging time
     uint64_t tx_commit_time_ = 0;   // transaction commit time
     uint64_t tid_;
-    SSL *ssl_session_;
+    SSL *ssl_session_ = nullptr;
 
     NotificationId(uint32_t id, uint32_t thread_id, uint64_t tx_start_time, SSL *ssl_session) 
         : id_(id), thread_id_(thread_id), tx_start_time_(tx_start_time), ssl_session_(ssl_session) {}
@@ -55,7 +55,7 @@ public:
     uint64_t epoch_;
     std::vector<NotificationId> buffer_;
     NidBufferItem *next_ = NULL;
-    NidBufferItem(uint64_t epoch) : epoch_(epoch) { buffer_.reserve(2097152); }
+    NidBufferItem(uint64_t epoch) : epoch_(epoch) { buffer_.reserve(4096); } // TODO: ここメモリ領域確保しすぎて爆発していたけど、なんでreserveしているんだっけ？
 };
 
 // TODO:コピペだから理解する、というか要らないかも

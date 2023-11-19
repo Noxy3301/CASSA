@@ -17,6 +17,8 @@
 #include "silo_notifier.h"
 #include "silo_log_buffer.h"
 
+#include <openssl/ssl.h>
+
 enum class TransactionStatus : uint8_t {
     Invalid,
     InFlight,
@@ -53,9 +55,9 @@ public:
     GarbageCollector gc_;
 
     // SSL session
-    uint64_t session_id_;
+    SSL *ssl_session_;
 
-    TxExecutor(size_t worker_thid, uint64_t session_id) : worker_thid_(worker_thid), session_id_(session_id) {
+    TxExecutor(size_t worker_thid, SSL *ssl_session) : worker_thid_(worker_thid), ssl_session_(ssl_session) {
         read_set_.clear();
         write_set_.clear();
         pro_set_.clear();

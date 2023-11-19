@@ -35,6 +35,9 @@
 #include <ostream>
 #include <string>
 
+#include <vector>
+#include <thread>
+
 #define LOOP_OPTION "-server-in-loop"
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t server_global_eid = 0;
@@ -83,6 +86,63 @@ void print_error_message(sgx_status_t ret) {
         printf("Error code is 0x%X. Please refer to the \"Intel SGX SDK Developer Reference\" for more details.\n", ret);
 }
 
+// class LoggerNode {
+// public:
+//     int logger_cpu_;
+//     std::vector<int> worker_cpu_;
+
+//     /**
+//      * @brief LoggerNodeのコンストラクタ
+//      *        logger_cpu_とworker_cpu_をデフォルト初期化する
+//      */
+//     LoggerNode() : logger_cpu_(0), worker_cpu_() {}
+// };
+
+// class LoggerAffinity {
+// public:
+//     std::vector<LoggerNode> nodes_;
+//     unsigned worker_num_ = 0;
+//     unsigned logger_num_ = 0;
+    
+//     /**
+//      * @brief worker_numとlogger_numを基にLoggerNodeのリストを初期化する
+//      * 
+//      * @param worker_num 初期化するworkerの数
+//      * @param logger_num 初期化するloggerの数
+//      */
+//     void init(unsigned worker_num, unsigned logger_num) {
+//         unsigned num_cpus = std::thread::hardware_concurrency();
+//         if (logger_num > num_cpus || worker_num > num_cpus) {
+//             // std::cout << "too many threads" << std::endl;
+//             printf("too many threads\n");
+//         }
+//         // LoggerAffinityのworker_numとlogger_numにコピー
+//         worker_num_ = worker_num;
+//         logger_num_ = logger_num;
+        
+//         for (unsigned i = 0; i < logger_num; i++) {
+//             nodes_.emplace_back();
+//         }
+//         unsigned thread_num = logger_num + worker_num;
+//         if (thread_num > num_cpus) {
+//             for (unsigned i = 0; i < worker_num; i++) {
+//                 nodes_[i * logger_num/worker_num].worker_cpu_.emplace_back(i);
+//             }
+//             for (unsigned i = 0; i < logger_num; i++) {
+//                 nodes_[i].logger_cpu_ = nodes_[i].worker_cpu_.back();
+//             }
+//         } else {
+//             for (unsigned i = 0; i < thread_num; i++) {
+//                 nodes_[i * logger_num/thread_num].worker_cpu_.emplace_back(i);
+//             }
+//             for (unsigned i = 0; i < logger_num; i++) {
+//                 nodes_[i].logger_cpu_ = nodes_[i].worker_cpu_.back();
+//                 nodes_[i].worker_cpu_.pop_back();
+//             }
+//         }
+//     }
+// };
+
 void write_sealData(std::string filePath, const uint8_t* sealed_data, const size_t sealed_size) {
     std::ofstream file(filePath, std::ios::out | std::ios::binary);
     if (file.fail()) {
@@ -120,6 +180,14 @@ sgx_status_t initialize_enclave(const char *enclave_path) {
     return ret;
 }
 
+// void launch_wogger_thread(size_t w_thid, size_t l_thid) {
+//     ecall_wogger_thread_work(server_global_eid, w_thid, l_thid);
+// }
+
+void launch_logger_thread(size_t l_thid) {
+    ecall_logger_thread_work(server_global_eid, l_thid);
+}
+
 void terminate_enclave() {
     sgx_destroy_enclave(server_global_eid);
     printf("Host: Enclave successfully terminated.\n");
@@ -130,6 +198,17 @@ int main(int argc, const char* argv[]) {
     int ret = 1;
     char* server_port = NULL;
     int keep_server_up = 0; // should be bool type, 0 false, 1 true
+
+    // TODO: worker/logger threadの数はハードコーディングしておくけど、後で変更する
+    // std::vector<std::thread> worker_threads;
+    std::vector<std::thread> logger_threads;
+    // size_t worker_num = 1;
+    size_t logger_num = 1;
+
+    // LoggerAffinity affin;
+    // affin.init(worker_num, logger_num);
+    // size_t w_thid = 0;  // Workerのthread ID
+    // size_t l_thid = 0;  // Loggerのthread ID, Workerのgroup IDとしても機能する
 
     /* Check argument count */
     if (argc == 4) {
@@ -167,14 +246,39 @@ int main(int argc, const char* argv[]) {
         printf("- [Host] Status: Success\n");
     }
 
+    // printf("\n[Launching worker/logger thread]\n");
+    // for (size_t w_thid = 0; w_thid < worker_num; w_thid++) {
+    //     worker_thrads.emplace_back(launch_worker_thread, w_thid);
+    // }
+
+    // for (auto itr = affin.nodes_.begin(); itr != affin.nodes_.end(); itr++, l_thid++) {
+    //     logger_threads.emplace_back(launch_logger_thread, l_thid);
+    //     for (auto wcpu = itr->worker_cpu_.begin(); wcpu != itr->worker_cpu_.end(); wcpu++, w_thid++) {
+    //         worker_threads.emplace_back(launch_worker_thread, w_thid, l_thid);
+    //     }
+    // }
+    
+    // printf("\n[Launching logger thread]\n");
+    // for (size_t l_thid = 0; l_thid < logger_num; l_thid++) {
+    //     logger_threads.emplace_back(launch_logger_thread, l_thid);
+    // }
+
+    // #include <chrono>
+
+    // std::this_thread::sleep_for(std::chrono::seconds(5));
+
     printf("\n[Launching TLS server enclave]\n");
     result = set_up_tls_server(server_global_eid, &ret, server_port, keep_server_up);
     if (result != SGX_SUCCESS || ret != 0) {
+        print_error_message(result);
         printf("Host: setup_tls_server failed\n");
         goto exit;
     }
 
 exit:
+
+    // for (auto &thread : worker_threads) thread.join();
+    for (auto &thread : logger_threads) thread.join();
 
     // printf("Host: Terminating enclaves\n");
     printf("\n[Terminating enclaves]\n");

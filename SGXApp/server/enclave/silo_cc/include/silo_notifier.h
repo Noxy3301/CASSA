@@ -10,6 +10,8 @@
 #include "silo_tsc.h"
 #include "../../cassa_common/db_tid.h"
 
+#include <openssl/ssl.h>
+
 class PepochFile {  // A:siloRでpepochを書き出しているのでそれに則っているらしい
 public:
     void open();
@@ -31,11 +33,11 @@ public:
     uint64_t tx_logging_time_ = 0;  // transaction logging time
     uint64_t tx_commit_time_ = 0;   // transaction commit time
     uint64_t tid_;
-    uint64_t session_id_;
+    SSL *ssl_session_;
 
-    NotificationId(uint32_t id, uint32_t thread_id, uint64_t tx_start_time, uint64_t session_id) 
-        : id_(id), thread_id_(thread_id), tx_start_time_(tx_start_time), session_id_(session_id) {}
-    NotificationId() { NotificationId(0, 0, 0, 0); }    // TODO: これどうしよう
+    NotificationId(uint32_t id, uint32_t thread_id, uint64_t tx_start_time, SSL *ssl_session) 
+        : id_(id), thread_id_(thread_id), tx_start_time_(tx_start_time), ssl_session_(ssl_session) {}
+    NotificationId() { NotificationId(0, 0, 0, nullptr); }    // TODO: これどうしよう
 
     // NOTE: NotificationIdのtidはLogBufferPool::push()のタイミングで書き込まれる
     uint64_t epoch() {

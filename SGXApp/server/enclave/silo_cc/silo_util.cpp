@@ -1,7 +1,5 @@
 #include "include/silo_util.h"
 
-#include <iostream>
-
 bool chkEpochLoaded() {
     uint64_t nowepo = atomicLoadGE();
     // leader_workを実行しているのはthid:0だからforは1から回している？

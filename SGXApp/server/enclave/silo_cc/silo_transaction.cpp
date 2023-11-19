@@ -6,7 +6,7 @@ void TxExecutor::begin() {
     max_wset_.obj_ = 0;
     max_rset_.obj_ = 0;
 
-    nid_ = NotificationId(nid_counter_++, worker_thid_, this->session_id_, rdtscp());
+    nid_ = NotificationId(nid_counter_++, worker_thid_, rdtscp(), this->ssl_session_);
 }
 
 void TxExecutor::abort() {

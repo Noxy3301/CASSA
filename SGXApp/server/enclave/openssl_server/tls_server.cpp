@@ -37,6 +37,8 @@
 #include "include/tls_server.h"
 #include "../../../common/openssl_utility.h"
 
+#include "../cassa_server.h"
+
 int verify_callback(int preverify_ok, X509_STORE_CTX* ctx);
 
 extern "C" {
@@ -77,23 +79,11 @@ exit:
     return ret;
 }
 
-void process_ssl_session(SSL* ssl_session) {
+void process_ssl_session(SSL *ssl_session) {
     t_print("\n[Processing TLS Session]\n");
-    std::string received_data;
-    while (true) {
-        received_data.clear();
-        tls_read_from_session_peer(ssl_session, received_data);
-        if (received_data == "/exit") {
-            t_print(TLS_SERVER "Received exit command from client\n");
-            break;
-        } else {
-            // 受け取ったデータを処理
-            t_print(TLS_SERVER "Received data from client: %s\n", received_data.c_str());
-            std::string processed_data = "[Processed] " + received_data;
-            // 処理結果をクライアントに送信
-            tls_write_to_session_peer(ssl_session, processed_data);
-        }
-    }
+
+    // you can execute some function here
+    process_cassa(ssl_session);
 
     // セッションの終了処理
     SSL_shutdown(ssl_session);
@@ -156,6 +146,8 @@ int set_up_tls_server(char* server_port, bool keep_server_up) {
     int client_socket_fd = -1;
     unsigned int server_port_number;
 
+    t_print("here?1\n");
+
     X509* certificate = nullptr;
     EVP_PKEY* pkey = nullptr;
     SSL_CONF_CTX* ssl_confctx = SSL_CONF_CTX_new();
@@ -168,10 +160,14 @@ int set_up_tls_server(char* server_port, bool keep_server_up) {
         goto exit;
     }
 
+    t_print("here?2\n");
+
     if (initalize_ssl_context(ssl_confctx, ssl_server_ctx) != SGX_SUCCESS) {
         t_print(TLS_SERVER "unable to create a initialize SSL context\n ");
         goto exit;
     }
+
+    t_print("here?3\n");
 
     SSL_CTX_set_verify(ssl_server_ctx, SSL_VERIFY_PEER, &verify_callback);
     t_print(TLS_SERVER "Load TLS certificate and key\n");
@@ -179,12 +175,16 @@ int set_up_tls_server(char* server_port, bool keep_server_up) {
         t_print(TLS_SERVER " unable to load certificate and private key on the server\n ");
         goto exit;
     }
+
+    t_print("here?4\n");
     
     server_port_number = (unsigned int)atoi(server_port); // convert to char* to int
     if (create_listener_socket(server_port_number, server_socket_fd) != 0) {
         t_print(TLS_SERVER " unable to create listener socket on the server\n ");
         goto exit;
     }
+
+    t_print("here?5\n");
 
     t_print("\n[Establishing TLS Connection]\n");
     ret = handle_communication_until_done(server_socket_fd, ssl_server_ctx, keep_server_up);

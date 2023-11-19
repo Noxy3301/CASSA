@@ -23,7 +23,7 @@ class Logger {
         void logging(bool quit);
 
     public:
-        int thid_;
+        size_t thid_;
         std::vector<int> thid_vec_;
         std::unordered_set<int> thid_set_;
         LogQueue queue_;
@@ -45,7 +45,7 @@ class Logger {
         // Stats depoch_diff_;
         LoggerResult &logger_result_;
 
-        Logger(int i, Notifier &n, LoggerResult &myres)
+        Logger(size_t i, Notifier &n, LoggerResult &myres)
             : thid_(i), notifier_stats_(n), logger_result_(myres) {}
 
         void add_tx_executor(TxExecutor &trans);

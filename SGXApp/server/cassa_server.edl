@@ -41,5 +41,6 @@ enclave {
     include "sgx_ttls.h"
     trusted {
         public int set_up_tls_server([in, string] char* port, int keep_server_up);
+        public void ecall_logger_thread_work(size_t logger_thid);
     };
 };

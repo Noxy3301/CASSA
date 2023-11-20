@@ -34,7 +34,7 @@ include ./sgxenv.mk
 
 .PHONY: all PREPARE_SGX_SSL build clean run
 
-all: build 
+all: build make_log
 
 # make sgxssl lib beforehand
 PREPARE_SGXSSL := ./prepare_sgxssl.sh
@@ -50,9 +50,15 @@ build: $(SGXSSL_HEADER_CHECK)
 	$(MAKE) -C server
 	$(MAKE) -C client
 
+make_log:
+	mkdir -p log
+	touch log/pepoch.seal
+	touch log/log0.seal
+
 clean:
 	$(MAKE) -C server clean
 	$(MAKE) -C client clean
+	rm -rf log
 
 run:
 	echo "Launch processes to establish an Attested TLS between two enclaves"

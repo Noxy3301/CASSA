@@ -112,7 +112,7 @@ void handle_command() {
         std::getline(std::cin, command);
 
         if (command.empty()) {
-            command = R"([ { "transactions": [ { "operation": "INSERT", "key": "key1", "value": "value1" }, { "operation": "INSERT", "key": "key2", "value": "value2" }, { "operation": "INSERT", "key": "key3", "value": "value3" }, { "operation": "INSERT", "key": "key4", "value": "value4" }, ] } ])";
+            command = R"({ "transactions": [ { "operation": "INSERT", "key": "key1", "value": "value1" }, { "operation": "INSERT", "key": "key2", "value": "value2" }, { "operation": "INSERT", "key": "key3", "value": "value3" }, { "operation": "INSERT", "key": "key4", "value": "value4" } ] })";
         }
     
         ecall_send_data(client_global_eid, command.c_str(), command.length());

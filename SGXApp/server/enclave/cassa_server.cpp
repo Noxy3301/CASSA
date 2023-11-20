@@ -102,29 +102,27 @@ void ecall_logger_thread_work(size_t logger_thid) {
 
 int jsonToProcedures(std::vector<Procedure> &pro, const nlohmann::json &transactions_json) {
     pro.clear();
-    for (const auto &transaction : transactions_json) {
-        for (const auto &operation : transaction["transactions"]) {
-            std::string operation_str = operation["operation"];
-            OpType ope;
+    for (const auto &operation : transactions_json["transactions"]) {
+        std::string operation_str = operation["operation"];
+        OpType ope;
 
-            if (operation_str == "INSERT") {
-                ope = OpType::INSERT;
-            } else if (operation_str == "READ") {
-                ope = OpType::READ;
-            } else if (operation_str == "WRITE") {
-                ope = OpType::WRITE;
-            } else {
-                t_print(TLS_SERVER "Unknown operation: %s\n", operation_str.c_str());
-                return -1;
-                // std::cout << "Unknown operation: " << operation_str << std::endl;
-                // assert(false);
-            }
-
-            std::string key_str = operation["key"];
-            std::string value_str = operation.value("value", ""); // If value does not exist (e.g., READ), set empty string
-
-            pro.emplace_back(ope, key_str, value_str); // TODO: txIDcounter
+        if (operation_str == "INSERT") {
+            ope = OpType::INSERT;
+        } else if (operation_str == "READ") {
+            ope = OpType::READ;
+        } else if (operation_str == "WRITE") {
+            ope = OpType::WRITE;
+        } else {
+            t_print(TLS_SERVER "Unknown operation: %s\n", operation_str.c_str());
+            return -1;
+            // std::cout << "Unknown operation: " << operation_str << std::endl;
+            // assert(false);
         }
+
+        std::string key_str = operation["key"];
+        std::string value_str = operation.value("value", ""); // If value does not exist (e.g., READ), set empty string
+
+        pro.emplace_back(ope, key_str, value_str); // TODO: txIDcounter
     }
 
     return 0;
@@ -146,7 +144,7 @@ RETRY:
     std::vector<std::string> values;
     std::string return_value;  // 返される値を格納するための string オブジェクトを作成
     std::string return_message;
-
+    t_print("koko3?\n");
     for (auto itr = trans.pro_set_.begin(); itr != trans.pro_set_.end(); itr++) {
         switch ((*itr).ope_) {
             case OpType::INSERT:
@@ -195,6 +193,8 @@ RETRY:
             return return_message;
         }
     }
+
+    t_print("koko?\n");
 
     if (trans.validationPhase()) {
         trans.writePhase();

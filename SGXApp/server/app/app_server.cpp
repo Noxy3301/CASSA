@@ -155,13 +155,13 @@ void write_sealData(std::string filePath, const uint8_t* sealed_data, const size
 
 int ocall_save_logfile(const uint8_t* sealed_data, const size_t sealed_size) {
     int thid = 0;   // TODO: セッションがどのファイルに書き込むかを検討する
-    std::string filePath = "logs/log" + std::to_string(thid) + ".seal";
+    std::string filePath = "log/log" + std::to_string(thid) + ".seal";
     write_sealData(filePath, sealed_data, sealed_size);
     return 0;
 }
 
 int ocall_save_pepochfile(const uint8_t* sealed_data, const size_t sealed_size) {
-    std::string filePath = "logs/pepoch.seal";
+    std::string filePath = "log/pepoch.seal";
     write_sealData(filePath, sealed_data, sealed_size);
     return 0;
 }

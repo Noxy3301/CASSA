@@ -34,6 +34,9 @@
 #include <string>
 #include <iostream>
 
+// #include "utils/command_handler.hpp"
+// #include "utils/parse_command.hpp"
+
 #define TLS_SERVER_NAME "localhost"
 #define TLS_SERVER_PORT "12340"
 
@@ -108,6 +111,10 @@ void handle_command() {
         std::string command;
         std::getline(std::cin, command);
 
+        if (command.empty()) {
+            command = R"([ { "transactions": [ { "operation": "INSERT", "key": "key1", "value": "value1" }, { "operation": "INSERT", "key": "key2", "value": "value2" }, { "operation": "INSERT", "key": "key3", "value": "value3" }, { "operation": "INSERT", "key": "key4", "value": "value4" }, ] } ])";
+        }
+    
         ecall_send_data(client_global_eid, command.c_str(), command.length());
 
         if (command == "/exit") {
@@ -116,6 +123,127 @@ void handle_command() {
         std::cout << "\n";
     }
 }
+
+// void handle_command() {
+//     std::cout << "\033[32m" << "[ INFO     ] " << "\033[0m" 
+//               << "Awaiting User Commands... (type '/help' for available commands, '/exit' to quit)" << std::endl;
+
+//     CommandHandler handler;
+//     std::vector<std::string> procedure;
+//     bool in_procedure = false;
+//     bool in_transaction = false;
+
+//     while (true) {
+//         // show procedure prompt if in procedure
+//         if (in_procedure) {
+//             std::cout << "\033[32m" << "=== start of procedure ===" << std::endl;
+//             for (auto proc : procedure) {
+//                 std::cout << proc << std::endl;
+//             }
+//             std::cout << "===  end of procedure  ===" << "\033[0m" << std::endl;
+//         }
+
+//         // get user input
+//         std::cout << "> ";
+//         std::string command;
+//         std::getline(std::cin, command);
+
+//         // exit the loop if EOF is detected or if "/exit" command is entered by the user
+//         if (std::cin.eof() || command == "/exit") {
+//             procedure.clear();  // 念のため
+//             break;
+//         }
+
+//         // handle /help command
+//         if (command == "/help") {
+//             handler.printHelp();
+//             continue;
+//         }
+
+//         // handle /mkproc command
+//         if (command == "/mkproc") {
+//             if (in_procedure) {
+//                 std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                           << "Error: Already in a procedure. Please end the current procedure first." << std::endl;
+//             } else {
+//                 in_procedure = true;
+//                 procedure.clear();
+//             }
+//             continue;
+//         }
+
+//         // handle /endproc command
+//         if (command == "/endproc") {
+//             if (!in_procedure) {
+//                 std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                           << "Error: Not in a procedure. Please begin a procedure first." << std::endl;
+//             } else {
+//                 if (in_transaction) {
+//                     std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                               << "Error: Still in a transaction. Please end the current transaction first." << std::endl;
+//                 } else {
+//                     in_procedure = false;
+//                     if (procedure.size() > 0) {
+//                         // create json object for procedure
+//                         nlohmann::json procedure_json = parseCommand(procedure);
+                        
+//                         // dump json object to string
+//                         std::string procedure_json_string = procedure_json.dump();
+//                         uint8_t *dumped_json_data = reinterpret_cast<const uint8_t*>(procedure_json_string.data());
+//                         size_t dumped_json_size = procedure_json_string.size();
+
+//                         // send procedure to enclave
+//                         size_t worker_thid = handler.rnd() % WORKER_NUM;
+//                         ecall_send_data(client_global_eid, dumped_json_data, dumped_json_size);
+
+//                         // clear procedure
+//                         procedure.clear();
+//                     }
+//                 }
+//             }
+//             continue;
+//         }
+
+//         if (in_procedure) {
+//             if (command == "BEGIN_TRANSACTION") {
+//                 if (in_transaction) {
+//                     std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                               << "Error: Already in a transaction. Please end the current transaction first." << std::endl;
+//                 } else {
+//                     in_transaction = true;
+//                     procedure.push_back(command);
+//                 }
+//             } else if (command == "END_TRANSACTION") {
+//                 if (!in_transaction) {
+//                     std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                               << "Error: Not in a transaction. Please begin a transaction first." << std::endl;
+//                 } else {
+//                     in_transaction = false;
+//                     procedure.push_back(command);
+//                 }
+//             } else if (in_transaction) {
+//                     std::pair<bool, std::string> check_syntax_result = handler.checkOperationSyntax(command);
+//                     if (check_syntax_result.first) {
+//                         procedure.push_back(command);
+//                     } else {
+//                         std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                                   << check_syntax_result.second << std::endl;
+//                     }
+//             } else if (!in_transaction) {
+//                     std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                               << "Error: Not in a transaction. Please begin a transaction first." << std::endl;
+//             } else {
+//                 std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                           << "Error: Invalid command. Please type '/help' for available commands." << std::endl;
+//             }
+//             continue;
+//         }
+
+//         // show error message because valid command was not entered here
+//         std::cout << "\033[31m" << "[ ERROR    ] " << "\033[0m" 
+//                   << "Error: Invalid command. Please type '/help' for available commands." << std::endl;
+//     }
+// }
 
 int main(int argc, const char* argv[]) {
     sgx_status_t result = SGX_SUCCESS;

@@ -42,6 +42,9 @@ void PepochFile::open() {
 void PepochFile::write(std::uint64_t epoch) {
     int ocall_ret;
     sgx_status_t res, ocall_status;
+#ifdef NO_ENCRYPT
+    ocall_status = ocall_save_pepochfile(&ocall_ret, (uint8_t*)&epoch, sizeof(epoch));
+#else
     size_t size = sizeof(uint64_t);
     size_t sealed_size = sizeof(sgx_sealed_data_t) + size;
     uint8_t* sealed_data = (uint8_t*)malloc(sealed_size);
@@ -50,7 +53,7 @@ void PepochFile::write(std::uint64_t epoch) {
     assert(res == SGX_SUCCESS);
     ocall_status = ocall_save_pepochfile(&ocall_ret, sealed_data, sealed_size);
     free(sealed_data);
-
+#endif
     // TODO: エラー表示
     // if (ocall_ret != 0) printf("ERR! ocall_ret != 0\n");
     // if (ocall_status != SGX_SUCCESS) printf("ERR! ocall_status != SGX_SUCCESS\n");

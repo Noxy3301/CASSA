@@ -110,7 +110,7 @@ build:
 		--search-path $(SGXSSL_PKG_PATH)/include \
 		--search-path ../app
 
-	$(CXX) -c -DM_TLS_SERVER $(Enclave_Cpp_Flags) -I. -std=c++17 -include "tsgxsslio.h" ${SRC_FILES}
+	$(CXX) -c -DM_TLS_SERVER $(Enclave_Cpp_Flags) -I. -std=c++17 -include "tsgxsslio.h" ${SRC_FILES} -DNO_ENCRYPT
 	$(CC) -c $(Enclave_C_Flags) -I. cassa_server_t.c
 	$(CXX) -o $(ENC_CASSA_SERVER_Name) $(OBJ_FILES) $(Enclave_Link_Flags)  
 

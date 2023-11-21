@@ -144,7 +144,6 @@ RETRY:
     std::vector<std::string> values;
     std::string return_value;  // 返される値を格納するための string オブジェクトを作成
     std::string return_message;
-    t_print("koko3?\n");
     for (auto itr = trans.pro_set_.begin(); itr != trans.pro_set_.end(); itr++) {
         switch ((*itr).ope_) {
             case OpType::INSERT:
@@ -193,8 +192,6 @@ RETRY:
             return return_message;
         }
     }
-
-    t_print("koko?\n");
 
     if (trans.validationPhase()) {
         trans.writePhase();

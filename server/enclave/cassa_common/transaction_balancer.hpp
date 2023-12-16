@@ -18,12 +18,13 @@
 */
 class TransactionQueue {
 public:
+    TransactionQueue() = default;
+
     /**
      * @brief Enqueue transaction to the queue
      * @param json_transaction(std::string) Transaction in JSON format
     */
     void putTransaction(const std::string &json_transaction) {
-        std::lock_guard<std::mutex> lock(mtx_);
         transaction_queue_.push(json_transaction);
     }
 
@@ -32,7 +33,6 @@ public:
      * @return json_transaction(std::string) Transaction in JSON format
     */
     std::string getTransaction() {
-        std::lock_guard<std::mutex> lock(mtx_);
         if (transaction_queue_.empty()) {
             return "";  // if queue is empty, return empty string
         }
@@ -43,7 +43,6 @@ public:
 
 private:
     std::queue<std::string> transaction_queue_; // transaction queue
-    std::mutex mtx_;    // mutex for transaction queue
 };
 
 /**
@@ -61,7 +60,7 @@ public:
      * @brief Constructor for TransactionBalancer.
      * @param num_workers(size_t) Number of worker queues to manage.
      */
-    TransactionBalancer() {}
+    TransactionBalancer() = default;
 
     void init(size_t num_workers) {
         transaction_queues_.resize(num_workers);
@@ -74,6 +73,7 @@ public:
     void putTransaction(const std::string &json_transaction) {
         // select worker queue randomly
         size_t worker_id = rnd_.next() % transaction_queues_.size();
+        std::lock_guard<std::mutex> lock(queue_mutexes_[worker_id]);
         transaction_queues_[worker_id].putTransaction(json_transaction);
     }
 
@@ -84,10 +84,12 @@ public:
      */
     std::string getTransaction(size_t worker_id) {
         assert(worker_id < transaction_queues_.size()); // validate worker_id
+        std::lock_guard<std::mutex> lock(queue_mutexes_[worker_id]);
         return transaction_queues_[worker_id].getTransaction();
     }
 
 private:
     std::vector<TransactionQueue> transaction_queues_;  // transaction queues for workers
+    std::vector<std::mutex> queue_mutexes_;  // mutexes for transaction queues
     Xoroshiro128Plus rnd_;  // random number generator
 };

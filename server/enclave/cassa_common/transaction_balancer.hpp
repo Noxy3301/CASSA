@@ -61,7 +61,11 @@ public:
      * @brief Constructor for TransactionBalancer.
      * @param num_workers(size_t) Number of worker queues to manage.
      */
-    TransactionBalancer(size_t num_workers) : transaction_queues_(num_workers) {}
+    TransactionBalancer() {}
+
+    void init(size_t num_workers) {
+        transaction_queues_.resize(num_workers);
+    }
 
     /**
      * @brief Enqueue a transaction to a randomly selected queue.

@@ -50,6 +50,12 @@ build: $(SGXSSL_HEADER_CHECK)
 	$(MAKE) -C server
 	$(MAKE) -C client
 
+build-server: $(SGXSSL_HEADER_CHECK)
+	$(MAKE) -C server
+
+build-client: $(SGXSSL_HEADER_CHECK)
+	$(MAKE) -C client
+
 make_log:
 	mkdir -p log
 	touch log/pepoch.seal

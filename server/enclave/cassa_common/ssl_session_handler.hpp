@@ -45,7 +45,20 @@ public:
      * @param session_id(uint64_t) Session ID
     */
     void removeSession(uint64_t session_id) {
-        if (ssl_sessions_.count(session_id) == 0) return;
-        ssl_sessions_.erase(session_id);
+        // get SSL session corresponding to the session ID
+        auto it = ssl_sessions_.find(session_id);
+        if (it == ssl_sessions_.end()) return;  // if not found, do nothing
+
+        // get SSL session
+        SSL *ssl_session = it->second;
+
+        // close and free SSL session
+        if (ssl_session) {
+            SSL_shutdown(ssl_session);
+            SSL_free(ssl_session);
+        }
+
+        // remove session from the map
+        ssl_sessions_.erase(it);
     }
 };

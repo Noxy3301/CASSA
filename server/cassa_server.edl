@@ -40,8 +40,12 @@ enclave {
 
     include "sgx_ttls.h"
     trusted {
-        public int set_up_tls_server([in, string] char* port, int keep_server_up);
         public void ecall_initialize_global_variables(size_t worker_num, size_t logger_num);
-        public void ecall_logger_thread_work(size_t logger_thid);
+
+        public void ecall_ssl_connection_acceptor([in, string] char* port, int keep_server_up);
+        public void ecall_ssl_session_monitor();
+
+        public void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid);
+        public void ecall_execute_logger_task(size_t logger_thid);
     };
 };

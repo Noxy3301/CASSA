@@ -201,10 +201,10 @@ void ecall_send_data(const char *data, size_t data_size) {
     t_print(TLS_CLIENT "send to server: %s\n", data_str.c_str());
     tls_write_to_session_peer(ssl_session, data_str);
 
-    // ここで受け取るのは適切じゃないけどテストということで
-    std::string response;
-    tls_read_from_session_peer(ssl_session, response);
-    t_print(TLS_CLIENT "Response from server: %s\n", response.c_str());
+    // // ここで受け取るのは適切じゃないけどテストということで
+    // std::string response;
+    // tls_read_from_session_peer(ssl_session, response);
+    // t_print(TLS_CLIENT "Response from server: %s\n", response.c_str());
 }
 
 void terminate_ssl_session() {

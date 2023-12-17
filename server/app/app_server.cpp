@@ -38,6 +38,8 @@
 #include <vector>
 #include <thread>
 
+#include "util/logger_affinity.hpp"
+
 #define LOOP_OPTION "-server-in-loop"
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t server_global_eid = 0;
@@ -123,13 +125,31 @@ sgx_status_t initialize_enclave(const char *enclave_path) {
     return ret;
 }
 
-// void launch_wogger_thread(size_t w_thid, size_t l_thid) {
-//     ecall_wogger_thread_work(server_global_eid, w_thid, l_thid);
-// }
 
-void launch_logger_thread(size_t l_thid) {
-    ecall_logger_thread_work(server_global_eid, l_thid);
+// SGX側でfcntlのマクロを呼び出せないので、ここでハードコーディングしておく
+// NOTE: 後で適切なところに移動する
+int u_fcntl_set_nonblocking(int fd) {
+    return fcntl(fd, F_SETFL, O_NONBLOCK);
 }
+
+
+void start_worker_task(size_t w_thid, size_t l_thid) {
+    ecall_execute_worker_task(server_global_eid, w_thid, l_thid);
+}
+
+void start_logger_task(size_t l_thid) {
+    // ecall_execute_logger_task(server_global_eid, l_thid);
+}
+
+void start_ssl_connection_acceptor_task(char* server_port, int keep_server_up) {
+    printf("start_ssl_connection_acceptor_task\n");
+    ecall_ssl_connection_acceptor(server_global_eid, server_port, keep_server_up);
+}
+
+// void start_ssl_session_monitor_task() {
+//     printf("start_ssl_session_monitor_task\n");
+//     ecall_ssl_session_monitor(server_global_eid);
+// }
 
 void terminate_enclave() {
     sgx_destroy_enclave(server_global_eid);
@@ -143,15 +163,20 @@ int main(int argc, const char* argv[]) {
     int keep_server_up = 0; // should be bool type, 0 false, 1 true
 
     // TODO: worker/logger threadの数はハードコーディングしておくけど、後で変更する
-    // std::vector<std::thread> worker_threads;
+    std::vector<std::thread> worker_threads;
     std::vector<std::thread> logger_threads;
-    // size_t worker_num = 1;
+    std::thread ssl_connection_acceptor_thread;
+
+    size_t worker_num = 1;
     size_t logger_num = 1;
 
-    // LoggerAffinity affin;
-    // affin.init(worker_num, logger_num);
+    LoggerAffinity affin;
+    affin.init(worker_num, logger_num);
     size_t w_thid = 0;  // Workerのthread ID
     size_t l_thid = 0;  // Loggerのthread ID, Workerのgroup IDとしても機能する
+
+    // ssl_connection_acceptor
+    // ssl_session_monitor
 
     /* Check argument count */
     if (argc == 4) {
@@ -185,42 +210,46 @@ int main(int argc, const char* argv[]) {
     if (result != SGX_SUCCESS) {
         printf("- [Host] Status: Failed\n");
         goto exit;
-    } else {
-        printf("- [Host] Status: Success\n");
     }
 
-    // printf("\n[Launching worker/logger thread]\n");
-    // for (size_t w_thid = 0; w_thid < worker_num; w_thid++) {
-    //     worker_thrads.emplace_back(launch_worker_thread, w_thid);
-    // }
+    printf("- [Host] Launching worker/logger thread\n");
+    for (auto itr = affin.nodes_.begin(); itr != affin.nodes_.end(); itr++, l_thid++) {
+        logger_threads.emplace_back(start_logger_task, l_thid);
+        for (auto wcpu = itr->worker_cpu_.begin(); wcpu != itr->worker_cpu_.end(); wcpu++, w_thid++) {
+            worker_threads.emplace_back(start_worker_task, w_thid, l_thid);
+        }
+    }
 
-    // for (auto itr = affin.nodes_.begin(); itr != affin.nodes_.end(); itr++, l_thid++) {
-    //     logger_threads.emplace_back(launch_logger_thread, l_thid);
-    //     for (auto wcpu = itr->worker_cpu_.begin(); wcpu != itr->worker_cpu_.end(); wcpu++, w_thid++) {
-    //         worker_threads.emplace_back(launch_worker_thread, w_thid, l_thid);
-    //     }
-    // }
+    printf("- [Host] Launching SSL connection acceptor thread\n");
+    ssl_connection_acceptor_thread = std::thread(start_ssl_connection_acceptor_task, server_port, keep_server_up);
 
-    printf("\n[Initialize CASSA settings]\n");
+    // printf("- [Host] Launching SSL session monitor thread\n");
+    // ssl_session_monitor_thread.emplace_back(start_ssl_session_monitor_task);
+
+    printf("- [Host] Initialize CASSA settings\n");
     ecall_initialize_global_variables(server_global_eid, 1, 1);
-    
-    printf("\n[Launching logger thread]\n");
-    for (size_t l_thid = 0; l_thid < logger_num; l_thid++) {
-        logger_threads.emplace_back(launch_logger_thread, l_thid);
-    }
 
-    printf("\n[Launching TLS server enclave]\n");
-    result = set_up_tls_server(server_global_eid, &ret, server_port, keep_server_up);
-    if (result != SGX_SUCCESS || ret != 0) {
+    // printf("\n[Launching TLS server enclave]\n");
+    // result = set_up_tls_server(server_global_eid, &ret, server_port, keep_server_up);
+    // if (result != SGX_SUCCESS || ret != 0) {
+    //     print_error_message(result);
+    //     printf("Host: setup_tls_server failed\n");
+    //     goto exit;
+    // }
+
+    result = ecall_ssl_session_monitor(server_global_eid);
+    if (result != SGX_SUCCESS) {
         print_error_message(result);
-        printf("Host: setup_tls_server failed\n");
+        printf("Host: ssl_session_monitor failed\n");
         goto exit;
     }
 
+
 exit:
 
-    // for (auto &thread : worker_threads) thread.join();
+    for (auto &thread : worker_threads) thread.join();
     for (auto &thread : logger_threads) thread.join();
+    ssl_connection_acceptor_thread.join();
 
     // printf("Host: Terminating enclaves\n");
     printf("\n[Terminating enclaves]\n");

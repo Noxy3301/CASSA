@@ -2,4 +2,4 @@
 
 #include <openssl/ssl.h>
 
-void process_cassa(SSL* ssl_session);
+int fcntl_set_nonblocking(int fd);

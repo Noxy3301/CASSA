@@ -1,12 +1,12 @@
 #include "include/silo_transaction.h"
 
 // トランザクションのライフサイクル管理
-void TxExecutor::begin() {
+void TxExecutor::begin(uint64_t session_id) {
     status_ = TransactionStatus::InFlight;
     max_wset_.obj_ = 0;
     max_rset_.obj_ = 0;
 
-    nid_ = NotificationId(nid_counter_++, worker_thid_, rdtscp(), this->ssl_session_);
+    nid_ = NotificationId(nid_counter_++, worker_thid_, rdtscp(), session_id);
 }
 
 void TxExecutor::abort() {

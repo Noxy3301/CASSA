@@ -54,10 +54,7 @@ public:
     // for garbage collection
     GarbageCollector gc_;
 
-    // SSL session
-    SSL *ssl_session_;
-
-    TxExecutor(size_t worker_thid, SSL *ssl_session) : worker_thid_(worker_thid), ssl_session_(ssl_session) {
+    TxExecutor(size_t worker_thid) : worker_thid_(worker_thid) {
         read_set_.clear();
         write_set_.clear();
         pro_set_.clear();
@@ -67,7 +64,7 @@ public:
     }
 
     // トランザクションのライフサイクル管理
-    void begin(); // トランザクションの開始
+    void begin(uint64_t session_id); // トランザクションの開始
     void abort(); // トランザクションの中止
     bool commit(); // トランザクションのコミット
     

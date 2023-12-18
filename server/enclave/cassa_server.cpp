@@ -130,6 +130,9 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
         } else {
             uint64_t session_id = ssl_session_handler.addSession(ssl_session);
             t_print(TLS_SERVER "Accepted client connection (session_id: %lu)\n", session_id);
+
+            // for debug
+            t_print(TLS_SERVER "Number of active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
         }
     }
 
@@ -144,7 +147,6 @@ void ecall_ssl_session_monitor() {
         for (auto &session_pair : ssl_session_handler.ssl_sessions_) {
             uint64_t session_id = session_pair.first;
             SSL *ssl_session = session_pair.second;
-            t_print(TLS_SERVER "Session %lu is alive\n", session_id);
 
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
@@ -152,12 +154,14 @@ void ecall_ssl_session_monitor() {
                 t_print(TLS_SERVER "Session %lu is not available\n", session_id);
                 ssl_session_handler.ssl_sessions_.erase(session_id);
                 continue;
+            } else {
+                // t_print(TLS_SERVER "Session %lu is alive\n", session_id);
             }
 
             // check if the session has received data
             char buffer[1];
             int result = SSL_peek(ssl_session, buffer, sizeof(buffer));
-            t_print(TLS_SERVER "SSL_peek result: %d\n", result);
+            // t_print(TLS_SERVER "SSL_peek result: %d\n", result);
             if (result > 0) {
                 // receive data from the session
                 std::string json_str;
@@ -171,8 +175,8 @@ void ecall_ssl_session_monitor() {
                 ssl_session_handler.ssl_sessions_.erase(session_id);
             } else {
                 // error
-                int error = SSL_get_error(ssl_session, result);
-                t_print(TLS_SERVER "SSL_peek error: %d\n", error);
+                // int error = SSL_get_error(ssl_session, result);
+                // t_print(TLS_SERVER "SSL_peek error: %d\n", error);
             }
         }
     }

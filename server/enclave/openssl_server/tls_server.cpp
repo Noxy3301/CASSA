@@ -64,6 +64,7 @@ int create_listener_socket(int port, int& server_socket) {
         goto exit;
     }
 
+    // set non-blocking
     if (fcntl_set_nonblocking(server_socket) < 0) {
         t_print(TLS_SERVER "set_non_blocking failed \n");
         goto exit;
@@ -110,6 +111,14 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
     if (test_error <= 0) {
         t_print(TLS_SERVER "SSL handshake failed, error(%d)(%d)\n",
                 test_error, SSL_get_error(ssl_session, test_error));
+        SSL_free(ssl_session);
+        ocall_close(&ret, client_socket_fd);
+        return nullptr;
+    }
+
+    // Set the new socket to non-blocking mode
+    if (fcntl_set_nonblocking(client_socket_fd) < 0) {
+        t_print(TLS_SERVER "Failed to set non-blocking mode for client socket\n");
         SSL_free(ssl_session);
         ocall_close(&ret, client_socket_fd);
         return nullptr;

@@ -129,7 +129,16 @@ sgx_status_t initialize_enclave(const char *enclave_path) {
 // SGX側でfcntlのマクロを呼び出せないので、ここでハードコーディングしておく
 // NOTE: 後で適切なところに移動する
 int u_fcntl_set_nonblocking(int fd) {
-    return fcntl(fd, F_SETFL, O_NONBLOCK);
+    int flags = fcntl(fd, F_GETFL, 0);
+        if (flags == -1) {
+            printf("fcntl failed\n");
+            return -1;
+        }
+        if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+            printf("fcntl failed\n");
+            return -1;
+        }
+        return 0;
 }
 
 

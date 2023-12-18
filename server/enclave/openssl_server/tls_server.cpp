@@ -64,6 +64,11 @@ int create_listener_socket(int port, int& server_socket) {
         goto exit;
     }
 
+    if (fcntl_set_nonblocking(server_socket) < 0) {
+        t_print(TLS_SERVER "set_non_blocking failed \n");
+        goto exit;
+    }
+
     if (bind(server_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         t_print(TLS_SERVER "Unable to bind socket to the port\n");
         goto exit;
@@ -82,12 +87,12 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
     int ret = -1; // dummy variable for ocall_close()
     struct sockaddr_in addr;
     uint len = sizeof(addr);
+    int client_socket_fd;
 
     t_print(TLS_SERVER "waiting for client connection ...\n");
-    int client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&addr, &len);
-    if (client_socket_fd < 0) {
-        t_print(TLS_SERVER "Unable to accept the client request\n");
-        return nullptr;
+    while (true) {
+        client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&addr, &len);
+        if (client_socket_fd >= 0) break;
     }
 
     // create a new SSL structure for a connection

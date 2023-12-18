@@ -99,6 +99,17 @@ void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {
     num_logger_threads = logger_num;
 }
 
+int fcntl_set_nonblocking(int fd) {
+    int retval;
+    sgx_status_t status = u_fcntl_set_nonblocking(&retval, fd);
+    if (status != SGX_SUCCESS) {
+        t_print(TLS_SERVER "SGX error while setting non-blocking: %d\n", status);
+        return -1;
+    }
+    return retval;
+}
+
+
 void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
     SSL_CTX *ssl_server_ctx = nullptr;
     int server_socket_fd = -1;

@@ -131,8 +131,8 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
             uint64_t session_id = ssl_session_handler.addSession(ssl_session);
             t_print(TLS_SERVER "Accepted client connection (session_id: %lu)\n", session_id);
 
-            // for debug
-            t_print(TLS_SERVER "Number of active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
+            // print active sessions
+            t_print(TLS_SERVER "Active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
         }
     }
 
@@ -153,6 +153,7 @@ void ecall_ssl_session_monitor() {
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
                 // remove the session from the map
                 t_print(TLS_SERVER "Session %lu is not available\n", session_id);
+
                 // remove the session from the map and reset iterator
                 ssl_session_handler.ssl_sessions_.erase(session_id);
                 it = ssl_session_handler.ssl_sessions_.begin();
@@ -162,7 +163,6 @@ void ecall_ssl_session_monitor() {
             // check if the session has received data
             char buffer[1];
             int result = SSL_peek(ssl_session, buffer, sizeof(buffer));
-            // t_print(TLS_SERVER "SSL_peek result: %d\n", result);
             if (result > 0) {
                 // receive data from the session
                 std::string json_str;
@@ -189,27 +189,32 @@ void ecall_ssl_session_monitor() {
                     case SSL_ERROR_SYSCALL:
                         // this error code is returned when the client closes 
                         // the connection without sending a close_notify alert
-                        t_print(TLS_SERVER "SSL_ERROR_SYSCALL\n");
+                        t_print(TLS_SERVER "Session ID: %lu may have closed unexpectedly (SSL_ERROR_SYSCALL).\n", session_id);
                         break;
 
                     case SSL_ERROR_ZERO_RETURN:
                         // this error code is returned when the client closes 
                         // the connection with sending a close_notify alert
-                        t_print(TLS_SERVER "SSL_ERROR_ZERO_RETURN\n");
+                        t_print(TLS_SERVER "Session ID: %lu has closed (SSL_ERROR_ZERO_RETURN).\n", session_id);
                         break;
 
                     default:
                         t_print(TLS_SERVER "Unknown error code: %d\n", ssl_error_code);
                         break;
                 }
-                
+
                 // clean up client session
                 if (ssl_session) {
                     SSL_free(ssl_session);
                 }
 
-                // remove the session from the map and reset iterator
+                // remove the session from the map
                 ssl_session_handler.ssl_sessions_.erase(session_id);
+
+                // print active sessions
+                t_print(TLS_SERVER "Active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
+
+                // reset iterator
                 it = ssl_session_handler.ssl_sessions_.begin();
                 continue;
             }

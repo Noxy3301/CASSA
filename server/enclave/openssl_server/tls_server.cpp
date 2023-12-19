@@ -90,7 +90,7 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
     uint len = sizeof(addr);
     int client_socket_fd;
 
-    t_print(TLS_SERVER "waiting for client connection ...\n");
+    t_print("\n" TLS_SERVER "waiting for client connection ...\n");
     while (true) {
         client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&addr, &len);
         if (client_socket_fd >= 0) break;

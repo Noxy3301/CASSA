@@ -144,17 +144,19 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
 void ecall_ssl_session_monitor() {
     while (true) {
         // TODO: 終了条件を設定する？
-        for (auto &session_pair : ssl_session_handler.ssl_sessions_) {
-            uint64_t session_id = session_pair.first;
-            SSL *ssl_session = session_pair.second;
+
+        auto it = ssl_session_handler.ssl_sessions_.begin();
+        while (it != ssl_session_handler.ssl_sessions_.end()) {
+            uint64_t session_id = it->first;
+            SSL* ssl_session = it->second;
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
                 // remove the session from the map
                 t_print(TLS_SERVER "Session %lu is not available\n", session_id);
+                // remove the session from the map and reset iterator
                 ssl_session_handler.ssl_sessions_.erase(session_id);
+                it = ssl_session_handler.ssl_sessions_.begin();
                 continue;
-            } else {
-                // t_print(TLS_SERVER "Session %lu is alive\n", session_id);
             }
 
             // check if the session has received data
@@ -178,36 +180,40 @@ void ecall_ssl_session_monitor() {
                         // (e.g, protocol error, handshake failure)
                         t_print(TLS_SERVER "SSL_ERROR_SSL\n");
                         break;
+
                     case SSL_ERROR_WANT_READ:
                         // this error code is returned when SSL_read finds no data
                         // in non-blocking mode, do nothing as it's normal behavior.
                         continue;
+
                     case SSL_ERROR_SYSCALL:
                         // this error code is returned when the client closes 
                         // the connection without sending a close_notify alert
                         t_print(TLS_SERVER "SSL_ERROR_SYSCALL\n");
-                        if (ssl_session) {
-                            SSL_free(ssl_session);
-                            ssl_session_handler.ssl_sessions_.erase(session_id);
-                        }
                         break;
+
                     case SSL_ERROR_ZERO_RETURN:
                         // this error code is returned when the client closes 
                         // the connection with sending a close_notify alert
                         t_print(TLS_SERVER "SSL_ERROR_ZERO_RETURN\n");
                         break;
+
                     default:
                         t_print(TLS_SERVER "Unknown error code: %d\n", ssl_error_code);
                         break;
                 }
                 
                 // clean up client session
-                // if (ssl_session) {
-                //     SSL_shutdown(ssl_session);
-                //     SSL_free(ssl_session);
-                // }
-                // ssl_session_handler.ssl_sessions_.erase(session_id);
+                if (ssl_session) {
+                    SSL_free(ssl_session);
+                }
+
+                // remove the session from the map and reset iterator
+                ssl_session_handler.ssl_sessions_.erase(session_id);
+                it = ssl_session_handler.ssl_sessions_.begin();
+                continue;
             }
+            it++;
         }
     }
 }

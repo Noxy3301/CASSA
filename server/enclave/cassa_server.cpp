@@ -147,7 +147,6 @@ void ecall_ssl_session_monitor() {
         for (auto &session_pair : ssl_session_handler.ssl_sessions_) {
             uint64_t session_id = session_pair.first;
             SSL *ssl_session = session_pair.second;
-
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
                 // remove the session from the map
@@ -170,13 +169,44 @@ void ecall_ssl_session_monitor() {
 
                 // debug
                 tls_write_to_session_peer(ssl_session, json_str);
-            } else if (result == 0) {
-                // session is closed
-                ssl_session_handler.ssl_sessions_.erase(session_id);
-            } else {
-                // error
-                // int error = SSL_get_error(ssl_session, result);
-                // t_print(TLS_SERVER "SSL_peek error: %d\n", error);
+            } else if (result <= 0) {
+                // error has occurred, print the error code
+                int ssl_error_code = SSL_get_error(ssl_session, result);
+                switch (ssl_error_code) {
+                    case SSL_ERROR_SSL:
+                        // this error code is returned when an error occurred 
+                        // (e.g, protocol error, handshake failure)
+                        t_print(TLS_SERVER "SSL_ERROR_SSL\n");
+                        break;
+                    case SSL_ERROR_WANT_READ:
+                        // this error code is returned when SSL_read finds no data
+                        // in non-blocking mode, do nothing as it's normal behavior.
+                        continue;
+                    case SSL_ERROR_SYSCALL:
+                        // this error code is returned when the client closes 
+                        // the connection without sending a close_notify alert
+                        t_print(TLS_SERVER "SSL_ERROR_SYSCALL\n");
+                        if (ssl_session) {
+                            SSL_free(ssl_session);
+                            ssl_session_handler.ssl_sessions_.erase(session_id);
+                        }
+                        break;
+                    case SSL_ERROR_ZERO_RETURN:
+                        // this error code is returned when the client closes 
+                        // the connection with sending a close_notify alert
+                        t_print(TLS_SERVER "SSL_ERROR_ZERO_RETURN\n");
+                        break;
+                    default:
+                        t_print(TLS_SERVER "Unknown error code: %d\n", ssl_error_code);
+                        break;
+                }
+                
+                // clean up client session
+                // if (ssl_session) {
+                //     SSL_shutdown(ssl_session);
+                //     SSL_free(ssl_session);
+                // }
+                // ssl_session_handler.ssl_sessions_.erase(session_id);
             }
         }
     }

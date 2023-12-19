@@ -157,6 +157,9 @@ void ecall_ssl_session_monitor() {
                 // remove the session from the map and reset iterator
                 ssl_session_handler.ssl_sessions_.erase(session_id);
                 it = ssl_session_handler.ssl_sessions_.begin();
+                
+                // print active sessions
+                t_print(TLS_SERVER "Active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
                 continue;
             }
 
@@ -208,14 +211,12 @@ void ecall_ssl_session_monitor() {
                     SSL_free(ssl_session);
                 }
 
-                // remove the session from the map
+                // remove the session from the map and reset iterator
                 ssl_session_handler.ssl_sessions_.erase(session_id);
+                it = ssl_session_handler.ssl_sessions_.begin();
 
                 // print active sessions
                 t_print(TLS_SERVER "Active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
-
-                // reset iterator
-                it = ssl_session_handler.ssl_sessions_.begin();
                 continue;
             }
             it++;

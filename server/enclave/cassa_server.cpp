@@ -185,8 +185,8 @@ void ecall_ssl_session_monitor() {
                 if (ssl_error_code != SSL_ERROR_WANT_READ) {
                     it = ssl_session_handler.ssl_sessions_.begin();
                     t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                    continue;
                 }
-                continue;
             }
             it++;
         }

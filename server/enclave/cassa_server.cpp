@@ -58,6 +58,11 @@
 #include "silo_cc/include/silo_notifier.h"
 #include "silo_cc/include/silo_util.h"
 
+#include "cassa_common/transaction_balancer.hpp"
+#include "cassa_common/ssl_session_handler.hpp"
+
+#include "openssl_server/include/tls_server.h"
+
 uint64_t GlobalEpoch = 1;                  // Global Epoch
 std::vector<uint64_t> ThLocalEpoch;        // Each worker thread processes transaction using its local epoch, updated during validationPhase or epochWork.
 std::vector<uint64_t> CTIDW;               // The last committed TID, updated during the publishing of the current buffer phase.
@@ -73,9 +78,12 @@ Notifier notifier;                         // 通知オブジェクト, スレ�
 
 Masstree masstree;
 
-// // for debug
+// for debug
 size_t num_worker_threads;
 size_t num_logger_threads;
+
+SSLSessionHandler ssl_session_handler;
+TransactionBalancer tx_balancer;
 
 void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {
     // Global epochを初期化する
@@ -91,16 +99,101 @@ void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {
     num_logger_threads = logger_num;
 }
 
-void ecall_logger_thread_work(size_t logger_thid) {
-    Logger logger(logger_thid, std::ref(notifier), std::ref(loggerResults[logger_thid]));
-    notifier.add_logger(&logger);
-    std::atomic<Logger*> *logp = &(logs[logger_thid]);
-    logp->store(&logger);
-    logger.worker();
-    return;
+int fcntl_set_nonblocking(int fd) {
+    int retval;
+    sgx_status_t status = u_fcntl_set_nonblocking(&retval, fd);
+    if (status != SGX_SUCCESS) {
+        t_print(TLS_SERVER "SGX error while setting non-blocking: %d\n", status);
+        return -1;
+    }
+    return retval;
 }
 
-int jsonToProcedures(std::vector<Procedure> &pro, const nlohmann::json &transactions_json) {
+
+void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
+    SSL_CTX *ssl_server_ctx = nullptr;
+    int server_socket_fd = -1;
+
+    // set up SSL session
+    if (set_up_ssl_session(server_port, &ssl_server_ctx, &server_socket_fd) != 0) {
+        t_print(TLS_SERVER "Failed to set up SSL session\n");
+        return;
+    }
+
+    // wait for client connection
+    while (true) {
+        // TODO: 終了条件を設定する？
+        SSL *ssl_session = accept_client_connection(server_socket_fd, ssl_server_ctx);
+        if (ssl_session == nullptr) {
+            t_print(TLS_SERVER "Error: accept_client_connection() failed\n");
+            break;
+        } else {
+            uint64_t session_id = ssl_session_handler.addSession(ssl_session);
+            t_print(TLS_SERVER "Accepted client connection (session_id: %lu)\n", session_id);
+
+            // print active session
+            t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+        }
+    }
+
+    // clean up
+    if (ssl_server_ctx) SSL_CTX_free(ssl_server_ctx);
+    ocall_close(nullptr, server_socket_fd);
+}
+
+void ecall_ssl_session_monitor() {
+    while (true) {
+        // TODO: 終了条件を設定する？
+
+        auto it = ssl_session_handler.ssl_sessions_.begin();
+        while (it != ssl_session_handler.ssl_sessions_.end()) {
+            uint64_t session_id = it->first;
+            SSL* ssl_session = it->second;
+
+            // check if the session is alive
+            if (!ssl_session || SSL_get_shutdown(ssl_session)) {
+                t_print(TLS_SERVER "Session ID: %lu has closed\n", session_id);
+                // remove the session from the map and reset iterator
+                // NOTE: SSL_ERROR_NONE is normal termination
+                ssl_session_handler.removeSession(session_id, SSL_ERROR_NONE);
+                it = ssl_session_handler.ssl_sessions_.begin();
+                
+                // print active session
+                t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                continue;
+            }
+
+            // check if the session has received data
+            char buffer[1];
+            int result = SSL_peek(ssl_session, buffer, sizeof(buffer));
+            if (result > 0) {
+                // receive data from the session
+                std::string json_str;
+                tls_read_from_session_peer(ssl_session, json_str);
+                t_print(TLS_SERVER "Received data from client: %s\n", json_str.c_str());
+
+                // TODO: execute transaction
+
+                // debug
+                tls_write_to_session_peer(ssl_session, json_str);
+            } else if (result <= 0) {
+                // remove the session from the map and reset iterator
+                int ssl_error_code = SSL_get_error(ssl_session, result);
+                ssl_session_handler.removeSession(session_id, ssl_error_code);
+
+                // print active session (except for SSL_ERROR_WANT_READ)
+                if (ssl_error_code != SSL_ERROR_WANT_READ) {
+                    it = ssl_session_handler.ssl_sessions_.begin();
+                    t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                    continue;
+                }
+            }
+            it++;
+        }
+    }
+}
+
+int json_to_procedures(std::vector<Procedure> &pro, const nlohmann::json &transactions_json) {
     pro.clear();
     for (const auto &operation : transactions_json["transactions"]) {
         std::string operation_str = operation["operation"];
@@ -131,7 +224,7 @@ int jsonToProcedures(std::vector<Procedure> &pro, const nlohmann::json &transact
 std::string execute_transaction(TxExecutor &trans, const std::string &json_str) {
     // convert std::string to nlohmann::json
     nlohmann::json json = nlohmann::json::parse(json_str);
-    if (jsonToProcedures(trans.pro_set_, json) != 0) {
+    if (json_to_procedures(trans.pro_set_, json) != 0) {
         // create error message (std::string)
         std::string return_message = "FIX ME";
         return return_message;
@@ -139,7 +232,7 @@ std::string execute_transaction(TxExecutor &trans, const std::string &json_str) 
 RETRY:
     trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, false); // TODO: falseをどうするか考える
     
-    trans.begin();
+    trans.begin(0); // TODO: session_idを渡すようにする
     Status status = Status::OK;
     std::vector<std::string> values;
     std::string return_value;  // 返される値を格納するための string オブジェクトを作成
@@ -206,13 +299,11 @@ RETRY:
     }
 }
 
-void process_cassa(SSL* ssl_session) {
-    // setup worker thread
-    int worker_thid = 0;   // TODO: ここはスレッドIDを渡すようにする
-    TxExecutor trans(worker_thid, ssl_session);
+void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
+    TxExecutor trans(worker_thid);
     WorkerResult &myres = std::ref(workerResults[worker_thid]);
     Logger *logger = nullptr;   // Log bufferを渡すLogger threadを紐づける
-    std::atomic<Logger*> *logp = &(logs[worker_thid]);  // loggerのthreadIDを指定したいからgidを使う
+    std::atomic<Logger*> *logp = &(logs[logger_thid]);  // loggerのthreadIDを指定したいからgidを使う
     while ((logger = logp->load()) == nullptr) {
         waitTime_ns(100);
     }
@@ -222,22 +313,20 @@ void process_cassa(SSL* ssl_session) {
     std::string json_str;
     while (true) {
         json_str.clear();
-        tls_read_from_session_peer(ssl_session, json_str);
-        if (json_str == "/exit") {
-            t_print(TLS_SERVER "Received exit command from client\n");
-            break;
-        } else {
-            // 受け取ったデータを処理
-            t_print(TLS_SERVER "Received data from client: %s\n", json_str.c_str());
-            std::string processed_data = execute_transaction(trans, json_str);
-            // 処理結果をクライアントに送信
-            if (!processed_data.empty()) {
-                tls_write_to_session_peer(ssl_session, processed_data);
-            }
-        }
+        // 一旦ここを消しておいて、スレッドが動作することを確認する
+        // TODO: siloの処理を持ってくる
     }
 
     // ワーカースレッドの終了処理
     trans.log_buffer_pool_.terminate();
     logger->worker_end(worker_thid);
+}
+
+void ecall_execute_logger_task(size_t logger_thid) {
+    Logger logger(logger_thid, std::ref(notifier), std::ref(loggerResults[logger_thid]));
+    notifier.add_logger(&logger);
+    std::atomic<Logger*> *logp = &(logs[logger_thid]);
+    logp->store(&logger);
+    logger.worker();
+    return;
 }

@@ -21,3 +21,6 @@ sgxssl/
 
 # logfile
 log/
+
+# vscode
+.vscode/

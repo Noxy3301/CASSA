@@ -42,7 +42,6 @@
 int verify_callback(int preverify_ok, X509_STORE_CTX* ctx);
 
 extern "C" {
-    int set_up_tls_server(char* server_port, bool keep_server_up);
     sgx_status_t ocall_close(int *ret, int fd);
 };
 
@@ -65,6 +64,12 @@ int create_listener_socket(int port, int& server_socket) {
         goto exit;
     }
 
+    // set non-blocking
+    if (fcntl_set_nonblocking(server_socket) < 0) {
+        t_print(TLS_SERVER "set_non_blocking failed \n");
+        goto exit;
+    }
+
     if (bind(server_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         t_print(TLS_SERVER "Unable to bind socket to the port\n");
         goto exit;
@@ -79,27 +84,16 @@ exit:
     return ret;
 }
 
-void process_ssl_session(SSL *ssl_session) {
-    t_print("\n[Processing TLS Session]\n");
-
-    // you can execute some function here
-    process_cassa(ssl_session);
-
-    // セッションの終了処理
-    SSL_shutdown(ssl_session);
-    SSL_free(ssl_session);
-}
-
 SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
     int ret = -1; // dummy variable for ocall_close()
     struct sockaddr_in addr;
     uint len = sizeof(addr);
+    int client_socket_fd;
 
-    t_print(TLS_SERVER "waiting for client connection ...\n");
-    int client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&addr, &len);
-    if (client_socket_fd < 0) {
-        t_print(TLS_SERVER "Unable to accept the client request\n");
-        return nullptr;
+    t_print("\n" TLS_SERVER "waiting for client connection ...\n");
+    while (true) {
+        client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&addr, &len);
+        if (client_socket_fd >= 0) break;
     }
 
     // create a new SSL structure for a connection
@@ -122,36 +116,23 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
         return nullptr;
     }
 
+    // Set the new socket to non-blocking mode
+    if (fcntl_set_nonblocking(client_socket_fd) < 0) {
+        t_print(TLS_SERVER "Failed to set non-blocking mode for client socket\n");
+        SSL_free(ssl_session);
+        ocall_close(&ret, client_socket_fd);
+        return nullptr;
+    }
+
     return ssl_session;
 }
 
-int handle_communication_until_done(int &server_socket_fd, SSL_CTX *&ssl_server_ctx, bool keep_server_up) {
-    while (keep_server_up) {
-        SSL *ssl_session = accept_client_connection(server_socket_fd, ssl_server_ctx);
-        if (ssl_session == nullptr) {
-            t_print(TLS_SERVER "Error: accept_client_connection() failed\n");
-            return -1;
-        } else {
-            process_ssl_session(ssl_session);
-            t_print(TLS_SERVER "TLS session closed\n");
-        }
-    }
-    return 0;
-}
-
-int set_up_tls_server(char* server_port, bool keep_server_up) {
-    // SSLコンテキストの設定と、リスナーソケットの作成を行う
-    int ret = 0;
-    int server_socket_fd;
-    int client_socket_fd = -1;
-    unsigned int server_port_number;
-
+int set_up_ssl_session(char* server_port, SSL_CTX** out_ssl_server_ctx, int* out_server_socket_fd) {
+    unsigned int server_port_number = (unsigned int)atoi(server_port);
     X509* certificate = nullptr;
     EVP_PKEY* pkey = nullptr;
     SSL_CONF_CTX* ssl_confctx = SSL_CONF_CTX_new();
-
     SSL_CTX* ssl_server_ctx = nullptr;
-    SSL* ssl_session = nullptr;
 
     if ((ssl_server_ctx = SSL_CTX_new(TLS_server_method())) == nullptr) {
         t_print(TLS_SERVER "unable to create a new SSL context\n");
@@ -170,31 +151,19 @@ int set_up_tls_server(char* server_port, bool keep_server_up) {
         goto exit;
     }
     
-    server_port_number = (unsigned int)atoi(server_port); // convert to char* to int
-    if (create_listener_socket(server_port_number, server_socket_fd) != 0) {
+    if (create_listener_socket(server_port_number, *out_server_socket_fd) != 0) {
         t_print(TLS_SERVER " unable to create listener socket on the server\n ");
         goto exit;
     }
 
-    t_print("\n[Establishing TLS Connection]\n");
-    ret = handle_communication_until_done(server_socket_fd, ssl_server_ctx, keep_server_up);
-    if (ret != 0) {
-        t_print(TLS_SERVER "server communication error %d\n", ret);
-        goto exit;
-    }
+    *out_ssl_server_ctx = ssl_server_ctx;
+    return 0;
 
 exit:
-    ocall_close(&ret, server_socket_fd); // close the server socket connections
-    if (ret != 0) t_print(TLS_SERVER "OCALL: error closing server socket\n");
-
-    if (ssl_server_ctx)
-        SSL_CTX_free(ssl_server_ctx);
-    if (ssl_confctx)
-        SSL_CONF_CTX_free(ssl_confctx);
-    if (certificate)
-        X509_free(certificate);
-    if (pkey)
-        EVP_PKEY_free(pkey);
-
-    return (ret);
+    // リソースの解放
+    if (ssl_server_ctx) SSL_CTX_free(ssl_server_ctx);
+    if (ssl_confctx) SSL_CONF_CTX_free(ssl_confctx);
+    if (certificate) X509_free(certificate);
+    if (pkey) EVP_PKEY_free(pkey);
+    return -1;
 }

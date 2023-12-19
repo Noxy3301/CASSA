@@ -131,8 +131,8 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
             uint64_t session_id = ssl_session_handler.addSession(ssl_session);
             t_print(TLS_SERVER "Accepted client connection (session_id: %lu)\n", session_id);
 
-            // print active sessions
-            t_print(TLS_SERVER "Active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
+            // print active session
+            t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
         }
     }
 
@@ -149,17 +149,17 @@ void ecall_ssl_session_monitor() {
         while (it != ssl_session_handler.ssl_sessions_.end()) {
             uint64_t session_id = it->first;
             SSL* ssl_session = it->second;
+
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
-                // remove the session from the map
-                t_print(TLS_SERVER "Session %lu is not available\n", session_id);
-
+                t_print(TLS_SERVER "Session ID: %lu has closed\n", session_id);
                 // remove the session from the map and reset iterator
-                ssl_session_handler.ssl_sessions_.erase(session_id);
+                // NOTE: SSL_ERROR_NONE is normal termination
+                ssl_session_handler.removeSession(session_id, SSL_ERROR_NONE);
                 it = ssl_session_handler.ssl_sessions_.begin();
                 
-                // print active sessions
-                t_print(TLS_SERVER "Active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                // print active session
+                t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
                 continue;
             }
 
@@ -172,51 +172,20 @@ void ecall_ssl_session_monitor() {
                 tls_read_from_session_peer(ssl_session, json_str);
                 t_print(TLS_SERVER "Received data from client: %s\n", json_str.c_str());
 
+                // TODO: execute transaction
+
                 // debug
                 tls_write_to_session_peer(ssl_session, json_str);
             } else if (result <= 0) {
-                // error has occurred, print the error code
-                int ssl_error_code = SSL_get_error(ssl_session, result);
-                switch (ssl_error_code) {
-                    case SSL_ERROR_SSL:
-                        // this error code is returned when an error occurred 
-                        // (e.g, protocol error, handshake failure)
-                        t_print(TLS_SERVER "SSL_ERROR_SSL\n");
-                        break;
-
-                    case SSL_ERROR_WANT_READ:
-                        // this error code is returned when SSL_read finds no data
-                        // in non-blocking mode, do nothing as it's normal behavior.
-                        continue;
-
-                    case SSL_ERROR_SYSCALL:
-                        // this error code is returned when the client closes 
-                        // the connection without sending a close_notify alert
-                        t_print(TLS_SERVER "Session ID: %lu may have closed unexpectedly (SSL_ERROR_SYSCALL).\n", session_id);
-                        break;
-
-                    case SSL_ERROR_ZERO_RETURN:
-                        // this error code is returned when the client closes 
-                        // the connection with sending a close_notify alert
-                        t_print(TLS_SERVER "Session ID: %lu has closed (SSL_ERROR_ZERO_RETURN).\n", session_id);
-                        break;
-
-                    default:
-                        t_print(TLS_SERVER "Unknown error code: %d\n", ssl_error_code);
-                        break;
-                }
-
-                // clean up client session
-                if (ssl_session) {
-                    SSL_free(ssl_session);
-                }
-
                 // remove the session from the map and reset iterator
-                ssl_session_handler.ssl_sessions_.erase(session_id);
-                it = ssl_session_handler.ssl_sessions_.begin();
+                int ssl_error_code = SSL_get_error(ssl_session, result);
+                ssl_session_handler.removeSession(session_id, ssl_error_code);
 
-                // print active sessions
-                t_print(TLS_SERVER "Active sessions: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                // print active session (except for SSL_ERROR_WANT_READ)
+                if (ssl_error_code != SSL_ERROR_WANT_READ) {
+                    it = ssl_session_handler.ssl_sessions_.begin();
+                    t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                }
                 continue;
             }
             it++;

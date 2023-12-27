@@ -6,6 +6,9 @@
 
 #include "random.h"
 
+// for t_print()
+#include "../../../common/common.h"
+
 class SSLSessionHandler {
 public:
     std::map<uint64_t, SSL*> ssl_sessions_; // session ID -> SSL session

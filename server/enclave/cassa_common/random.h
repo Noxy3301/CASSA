@@ -1,3 +1,4 @@
+#pragma once
 /**
  * This algorithm is originally developed
  * by David Blackman and Sebastiano Vigna (vigna@acm.org)
@@ -5,25 +6,24 @@
  *
  * And Tanabe Takayuki custmized.
  */
-
 #include <stdint.h>
 
-#pragma once
+// SGX Libraries for sgx_rand_read()
+#include "sgx_trts.h"
 
 class Xoroshiro128Plus {
     public:
         Xoroshiro128Plus() {
-            init(0);
-        }
-
-        Xoroshiro128Plus(unsigned init_rnd) {
-            init(init_rnd);
+            init();
         }
 
         uint64_t s[2];
 
-        inline void init(unsigned init_rnd) {
-            s[0] = init_rnd;
+        inline void init() {
+            unsigned init_seed;
+            sgx_read_rand((unsigned char *) &init_seed, 4);
+
+            s[0] = init_seed;
             s[1] = splitMix64(s[0]);
         }
 

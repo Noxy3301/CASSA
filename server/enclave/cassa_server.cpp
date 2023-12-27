@@ -23,45 +23,36 @@
 * SOFTWARE
 *
 */
-
-// #include "global_variables.h"
-
-// #include "utils/atomic_wrapper.h"
-
-// #include "silo_cc/include/silo_logger.h"
-// #include "silo_cc/include/silo_notifier.h"
-// #include "silo_cc/include/silo_util.h"
-
-// #include "../Include/structures.h"
-// #include "../../common/cassa/structures.h"
-
-// #include "../../common/cassa/third_party/json.hpp"
-
-// #include "utils/transaction_manager.h"
-
-// #include "../../common/third_party/json.hpp"
-
 #include <string>
 #include <vector>
 
-#include "silo_cc/include/silo_transaction.h"
+// SGX Libraries for sgx_rand_read()
+#include "sgx_trts.h"
 
-#include "../../common/openssl_utility.h"
-#include "../../common/third_party/json.hpp"
-
+// CASSA Server Core Features
 #include "cassa_server.h"
 #include "global_variables.h"
 #include "cassa_common/structures.h"
-#include "masstree/include/masstree.h"
 
+// CASSA/Silo_CC
+#include "silo_cc/include/silo_transaction.h"
 #include "silo_cc/include/silo_logger.h"
 #include "silo_cc/include/silo_notifier.h"
 #include "silo_cc/include/silo_util.h"
 
+// CASSA/Masstree
+#include "masstree/include/masstree.h"
+
+// CASSA/Utilities 
 #include "cassa_common/transaction_balancer.hpp"
 #include "cassa_common/ssl_session_handler.hpp"
 
+// OpenSSL Utilities
+#include "../../common/openssl_utility.h"
 #include "openssl_server/include/tls_server.h"
+
+// Third Party Libraries
+#include "../../common/third_party/json.hpp"
 
 uint64_t GlobalEpoch = 1;                  // Global Epoch
 std::vector<uint64_t> ThLocalEpoch;        // Each worker thread processes transaction using its local epoch, updated during validationPhase or epochWork.

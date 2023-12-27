@@ -24,3 +24,6 @@ log/
 
 # vscode
 .vscode/
+
+# executable files
+*.out

@@ -119,8 +119,8 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
             t_print(TLS_SERVER "Error: accept_client_connection() failed\n");
             break;
         } else {
-            uint64_t session_id = ssl_session_handler.addSession(ssl_session);
-            t_print(TLS_SERVER "Accepted client connection (session_id: %lu)\n", session_id);
+            std::string session_id = ssl_session_handler.addSession(ssl_session);
+            t_print(TLS_SERVER "Accepted client connection (session_id: %s)\n", session_id.c_str());
 
             // print active session
             t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
@@ -138,12 +138,12 @@ void ecall_ssl_session_monitor() {
 
         auto it = ssl_session_handler.ssl_sessions_.begin();
         while (it != ssl_session_handler.ssl_sessions_.end()) {
-            uint64_t session_id = it->first;
+            std::string session_id = it->first;
             SSL* ssl_session = it->second;
 
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
-                t_print(TLS_SERVER "Session ID: %lu has closed\n", session_id);
+                t_print(TLS_SERVER "Session ID: %s has closed\n", session_id.c_str());
                 // remove the session from the map and reset iterator
                 // NOTE: SSL_ERROR_NONE is normal termination
                 ssl_session_handler.removeSession(session_id, SSL_ERROR_NONE);
@@ -159,15 +159,33 @@ void ecall_ssl_session_monitor() {
             int result = SSL_peek(ssl_session, buffer, sizeof(buffer));
             if (result > 0) {
                 // receive data from the session
-                std::string json_str;
-                tls_read_from_session_peer(ssl_session, json_str);
-                t_print(TLS_SERVER "Received data from client: %s\n", json_str.c_str());
-
+                std::string received_data;
+                tls_read_from_session_peer(ssl_session, received_data);
+                t_print(TLS_SERVER "Received data from client: %s\n", received_data.c_str());
+                
+                // handle if reveiced data is command
+                if (received_data == "/get_session_id") {
+                    // notify session ID to client
+                    t_print(TLS_SERVER "\033[32m" "Session ID: " "\033[0m" "%s\n", session_id.c_str());
+                    tls_write_to_session_peer(ssl_session, session_id);
+                    it++;
+                    continue;
+                }
+                
                 // TODO: execute transaction
 
                 // debug
-                tls_write_to_session_peer(ssl_session, json_str);
-            } else if (result <= 0) {
+                tls_write_to_session_peer(ssl_session, received_data);
+            } else if (result == 0) {
+                // remove the session from the map and reset iterator
+                // NOTE: SSL_ERROR_NONE is normal termination
+                ssl_session_handler.removeSession(session_id, SSL_ERROR_NONE);
+                it = ssl_session_handler.ssl_sessions_.begin();
+
+                // print active session
+                t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                continue;
+            } else { // result <= 0
                 // remove the session from the map and reset iterator
                 int ssl_error_code = SSL_get_error(ssl_session, result);
                 ssl_session_handler.removeSession(session_id, ssl_error_code);

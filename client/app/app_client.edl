@@ -29,26 +29,9 @@
  *
  */
 
-
+// ocall for untrusted functions 
 enclave {
-    from "sgx_tstdc.edl" import *;
-    from "enclave.edl" import *;
-    from "sgx_socket.edl" import *;
-    from "sgx_tsgxssl.edl" import *;
-    from "sgx_ttls.edl" import *;
-    from "sgx_pthread.edl" import *;
-    from "app_client.edl" import *;
-
-    include "sgx_ttls.h"
-    trusted {
-        public int launch_tls_client(
-            [in, string] char* server_name,
-            [in, string] char* server_port);
-
-        public void terminate_ssl_session();
-        public void ecall_send_data(
-            [in, size=data_size] const char *data,
-            size_t data_size
-        );
+    untrusted {
+        int ocall_set_client_session_id([in, size=session_id_size]const uint8_t* session_id_data, size_t session_id_size);
     };
 };

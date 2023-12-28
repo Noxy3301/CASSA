@@ -32,6 +32,7 @@
 #include <sys/types.h>
 #include <string>
 #include <iostream>
+#include <ctime>
 
 // ANSI color codes
 #include "../../common/ansi_color_code.h"
@@ -47,7 +48,7 @@
 sgx_enclave_id_t client_global_eid = 0;
 
 // session ID
-std::string cleint_session_id;
+std::string client_session_id;
 
 typedef struct _sgx_errlist_t {
     sgx_status_t err;
@@ -112,8 +113,8 @@ void terminate_enclave() {
 }
 
 int ocall_set_client_session_id(const uint8_t* session_id_data, size_t session_id_size) {
-    cleint_session_id = std::string((const char*)session_id_data, session_id_size);
-    printf("- [Host] Session ID: %s\n", cleint_session_id.c_str());
+    client_session_id = std::string((const char*)session_id_data, session_id_size);
+    printf("- [Host] Session ID: %s\n", client_session_id.c_str());
     return 0;
 }
 
@@ -137,7 +138,7 @@ void handle_command() {
     bool in_transaction = false;
 
     // wait until ocall_set_client_session_id() sets the session ID assigned by the server
-    while (cleint_session_id.empty());
+    while (client_session_id.empty());
 
     while (true) {
         // if in transaction, print the current operations
@@ -197,9 +198,13 @@ void handle_command() {
                 // check if the transaction has at least 1 operation (except BEGIN_TRANSACTION and END_TRANSACTION)
                 if (operations.size() > 0) {
                     // create timestamp
+                    timespec ts;
+                    clock_gettime(CLOCK_REALTIME, &ts);
+                    long int timestamp_sec = ts.tv_sec;
+                    long int timestamp_nsec = ts.tv_nsec;
 
                     // create JSON object for the transaction
-                    nlohmann::json transaction_json = parse_command(operations);
+                    nlohmann::json transaction_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, operations);
 
                     // dump json object to string
                     std::string transaction_json_string = transaction_json.dump();

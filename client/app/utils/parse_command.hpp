@@ -21,13 +21,17 @@
  *       "END_TRANSACTION"
  *   };
 */
-nlohmann::json parse_command(const std::vector<std::string> &commands) {
+nlohmann::json parse_command(long int timestamp_sec, 
+                             long int timestamp_nsec, 
+                             const std::string &session_id,
+                             const std::vector<std::string> &commands) {
     // create JSON object for the transaction
     nlohmann::json transaction = nlohmann::json::object();
 
     // add timestamp and client sessionID
-    transaction["timestamp"] = "2023-12-27T12:00:00"; // 仮のtimestamp
-    transaction["client_sessionID"] = "session1234";  // 仮のclient sessionID
+    transaction["timestamp_sec"] = timestamp_sec;
+    transaction["timestamp_nsec"] = timestamp_nsec;
+    transaction["client_sessionID"] = session_id;
 
     // add transaction array
     transaction["transaction"] = nlohmann::json::array();

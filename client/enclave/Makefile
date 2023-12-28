@@ -107,6 +107,7 @@ build:
 		--search-path $(INCDIR) \
 		--search-path $(SOCKETINCDIR) \
 		--search-path $(SSLINCDIR) \
+		--search-path ../app
 
 	$(CXX) -c -DM_TLS_CLIENT $(Enclave_Cpp_Flags) -I. -include "tsgxsslio.h" -std=c++17 $(SRC_FILES)
 	$(CC) -c $(Enclave_C_Flags) -I. ./cassa_client_t.c

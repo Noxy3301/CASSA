@@ -30,12 +30,15 @@
 #include "cassa_client_u.h"
 #include <sys/socket.h>
 #include <sys/types.h>
-
 #include <string>
 #include <iostream>
 
-// #include "utils/command_handler.hpp"
-// #include "utils/parse_command.hpp"
+// ANSI color codes
+#include "../../common/ansi_color_code.h"
+
+// CASSA utilities
+#include "utils/command_handler.hpp"
+#include "utils/parse_command.hpp"
 
 #define TLS_SERVER_NAME "localhost"
 #define TLS_SERVER_PORT "12340"
@@ -43,6 +46,7 @@
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t client_global_eid = 0;
 
+// session ID
 std::string cleint_session_id;
 
 typedef struct _sgx_errlist_t {
@@ -114,38 +118,157 @@ int ocall_set_client_session_id(const uint8_t* session_id_data, size_t session_i
 }
 
 /**
- * @brief receive session ID from server
+ * @brief request session ID from server
  * @note This function is utilizing ecall_send_data() 
  *       which non-blockingly fetch the data to receive 
  *       session ID from the server for first.
 */
-void receive_session_id() {
+void request_session_id() {
     std::string command = "/get_session_id";
     ecall_send_data(client_global_eid, command.c_str(), command.length());
 }
 
 void handle_command() {
+    std::cout << BGRN << "[ INFO     ] " << CRESET 
+              << "Awaiting User Commands... (type '/help' for available commands, '/exit' to quit)" << std::endl;
+
+    CommandHandler command_handler;
+    std::vector<std::string> operations;
+    bool in_transaction = false;
+
+    // wait until ocall_set_client_session_id() sets the session ID assigned by the server
+    while (cleint_session_id.empty());
+
     while (true) {
-        std::cout << "Host: Enter command to send to server: ";
+        // if in transaction, print the current operations
+        if (in_transaction) {
+            for (size_t i = 0; i < operations.size(); i++) {
+                std::cout << CYN << std::setw(4) << std::right << i + 1 << " " << CRESET 
+                          << operations[i] << std::endl;
+            }
+        }
+
+        // if in transaction, print the green prompt
+        if (in_transaction) {
+            std::cout << CYN << "> " << CRESET;
+        } else {
+            std::cout << "> ";
+        }
+
+        // get command from user
         std::string command;
         std::getline(std::cin, command);
 
-        if (command.empty()) {
-            command = R"({ "transactions": [ { "operation": "INSERT", "key": "key1", "value": "value1" }, { "operation": "INSERT", "key": "key2", "value": "value2" }, { "operation": "INSERT", "key": "key3", "value": "value3" }, { "operation": "INSERT", "key": "key4", "value": "value4" } ] })";
-        }
-    
-        ecall_send_data(client_global_eid, command.c_str(), command.length());
-
-        if (command == "/exit") {
+        // exit the loop if EOF(ctrl+D) is detected or if "/exit" command is entered by the user
+        if (std::cin.eof() || command == "/exit") {
+            std::cout << "Exiting..." << std::endl;
             break;
         }
-        std::cout << "\n";
+
+        // handle /help command
+        if (command == "/help") {
+            command_handler.printHelp();
+            continue;
+        }
+
+        // handle /maketx command
+        if (command == "/maketx") {
+            // check if the user is already in transaction
+            if (in_transaction) {
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << "You are already in transaction. Please finish or abort the current transaction." << std::endl;
+            } else {
+                std::cout << BGRN << "[ INFO     ] " << CRESET
+                          << "You are now in transaction. Please enter operations." << std::endl;
+                operations.clear();
+
+                // set in_transaction to true
+                in_transaction = true;
+            }
+            continue;
+        }
+
+        // handle /endtx command
+        if (command == "/endtx") {
+            if (in_transaction) {
+                // set in_transaction to false
+                in_transaction = false;
+
+                // check if the transaction has at least 1 operation (except BEGIN_TRANSACTION and END_TRANSACTION)
+                if (operations.size() > 0) {
+                    // create timestamp
+
+                    // create JSON object for the transaction
+                    nlohmann::json transaction_json = parse_command(operations);
+
+                    // dump json object to string
+                    std::string transaction_json_string = transaction_json.dump();
+
+                    // send the transaction to the server
+                    ecall_send_data(client_global_eid, transaction_json_string.c_str(), transaction_json_string.length());
+
+                    // CRESET the operations
+                    operations.clear();
+                }
+            } else {
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
+            }
+            continue;
+        }
+
+        // handle /undo command
+        if (command == "/undo") {
+            if (in_transaction) {
+                // check if the transaction has at least 1 operation (except BEGIN_TRANSACTION and END_TRANSACTION)
+                if (operations.size() > 0) {
+                    std::cout << BGRN << "[ INFO     ] " << CRESET
+                              << "Last operation " << GRN << "\"" <<  operations.back() << "\" " << CRESET << "removed from transaction." << std::endl;
+                    // remove the last operation
+                    operations.pop_back();
+                } else {
+                    std::cout << BRED << "[ ERROR    ] " << CRESET
+                              << "No operation to undo." << std::endl;
+                }
+            } else {
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
+            }
+            continue;
+        }
+
+        // handle operations if in transaction
+        if (in_transaction) {
+            // check if the command is a valid operation
+            std::pair<bool, std::string> check_syntax_result = command_handler.checkOperationSyntax(command);
+            bool is_valid_syntax = check_syntax_result.first;
+            std::string operation = check_syntax_result.second;
+
+            if (is_valid_syntax) {
+                // if the operation is valid, add it to the transaction
+                operations.push_back(command);
+                std::cout << BGRN << "[ INFO     ] " << CRESET
+                          << "Operation " << GRN << "\"" <<  command << "\" " << CRESET << "added to transaction." << std::endl;
+            } else {
+                // if the operation is invalid, print the error message
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << check_syntax_result.second << std::endl;
+            }
+            continue;
+        }
+
+        // handle unknown command because valid command was not entered here
+        std::cout << BRED << "[ ERROR    ] " << CRESET
+                  << "Unknown command. Please enter '/help' to see available commands." << std::endl;
     }
 }
 
 int main(int argc, const char* argv[]) {
+    // SGX variables
     sgx_status_t result = SGX_SUCCESS;
     int ret = 1;
+
+    // TLS settings
     char* server_name = NULL;
     char* server_port = NULL;
 
@@ -206,9 +329,11 @@ int main(int argc, const char* argv[]) {
     }
 
     printf("\n[Client-Server Communication]\n");
-    receive_session_id();
-    handle_command();
+    // request session ID from server
+    request_session_id();
 
+    // handle commands
+    handle_command();
 
     ret = 0;
 exit:

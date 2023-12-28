@@ -22,41 +22,42 @@
  *   };
 */
 nlohmann::json parse_command(const std::vector<std::string> &commands) {
-    nlohmann::json transactions = nlohmann::json::array();
-    nlohmann::json current_transaction;
+    // create JSON object for the transaction
+    nlohmann::json transaction = nlohmann::json::object();
 
+    // add timestamp and client sessionID
+    transaction["timestamp"] = "2023-12-27T12:00:00"; // 仮のtimestamp
+    transaction["client_sessionID"] = "session1234";  // 仮のclient sessionID
+
+    // add transaction array
+    transaction["transaction"] = nlohmann::json::array();
+
+    // parse operations and add them to the transaction
     for (const auto &command : commands) {
         std::istringstream ss(command);
         std::string word;
         while (ss >> word) {
-            if (word == "BEGIN_TRANSACTION") {
-                current_transaction = nlohmann::json::object();
-                current_transaction["timestamp"] = "2023-12-27T12:00:00"; // 仮のtimestamp
-                current_transaction["client_sessionID"] = "session1234";  // 仮のclient sessionID
-                current_transaction["transaction"] = nlohmann::json::array();
-            } else if (word == "END_TRANSACTION") {
-                transactions.push_back(current_transaction);
-            } else {
-                // parse operations
-                nlohmann::json operation = nlohmann::json::object();
-                std::string key, value;
-                ss >> key;
+            nlohmann::json operation = nlohmann::json::object();
+            std::string key, value;
+            ss >> key;
 
-                if (word == "INSERT" || word == "WRITE" || word == "RMW") {
-                    ss >> value;
-                    operation["operation"] = word;
-                    operation["key"] = key;
-                    operation["value"] = value;
+            if (word == "INSERT" || word == "WRITE" || word == "RMW") {
+                ss >> value;
+                operation["operation"] = word;
+                operation["key"] = key;
+                operation["value"] = value;
 
-                    current_transaction["transaction"].push_back(operation);
-                } else if (word == "READ" || word == "DELETE") {
-                    operation["operation"] = word;
-                    operation["key"] = key;
+                transaction["transaction"].push_back(operation);
+            } else if (word == "READ" || word == "DELETE") {
+                operation["operation"] = word;
+                operation["key"] = key;
 
-                    current_transaction["transaction"].push_back(operation);
-                } // TODO: SCAN
+                transaction["transaction"].push_back(operation);
+            } else if (word == "SCAN") {
+                // TODO: SCAN
             }
         }
     }
-    return transactions;
+    // return empty json object if the transaction is empty
+    return transaction;
 }

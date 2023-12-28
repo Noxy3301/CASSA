@@ -13,6 +13,8 @@
 
 #include "../../../common/third_party/json.hpp"
 
+#include "../../../common/ansi_color_code.h"
+
 class CommandHandler {
 public:
     std::random_device rnd;
@@ -24,37 +26,32 @@ public:
     void printHelp() {
         std::cout 
             << "=== Available commands ===\n"
-            << "  - [x] /help: Display available commands and their usage.\n"
-            << "  - [x] /exit: Terminate the command handler.\n"
-            << "  - [ ] /maketable <name>: Create a new table with the specified name.\n"
+            << "  - " BGRN "[x]" reset " /help             : Display available commands and their usage.\n"
+            << "  - " BGRN "[x]" reset " /exit             : Terminate the command handler.\n"
+            << "  - " BRED "[ ]" reset " /maketable <name> : Create a new table with the specified name.\n"
+            << "  - " BGRN "[x]" reset " /maketx           : Create a new transaction.\n"
+            << "  - " BGRN "[x]" reset " /endtx            : End the current transaction and send to the server.\n"
+            << "  - " BGRN "[x]" reset " /undo             : Undo the last operation. (Only available in a transaction)\n"
 
-            << "  - [x] /maketx: Create a new transaction.\n"
-            << "  - [x] /endtx: End the current transaction and send to the server.\n"
-
-            << "=== Transaction commands ===\n"
-            << "  - [x] BEGIN_TRANSACTION: Begin a new transaction.\n"
-            << "  - [x] END_TRANSACTION: End the current transaction.\n"
-            << "  - [x] INSERT <key> <value> : Insert a new key-value pair.\n"
-            << "  - [ ] DELETE <key>         : Delete the key-value pair associated with the specified key.\n"
-            << "  - [x] READ   <key>         : Retrieve the value associated with the specified key.\n"
-            << "  - [x] WRITE  <key> <value> : Set a value associated with the specified key.\n"
-            << "  - [ ] RMW    <key> <value> : Read the value associated with the specified key, and then write the specified value.\n"
-            << "  - [ ] SCAN   <key> <count> : Retrieve the specified number of key-value pairs starting from the specified key.\n"
+            << "=== Transaction operations ===\n"
+            << "  - " BGRN "[x]" reset " INSERT <key> <value> : Insert a new key-value pair.\n"
+            << "  - " BRED "[ ]" reset " DELETE <key>         : Delete the key-value pair associated with the specified key.\n"
+            << "  - " BGRN "[x]" reset " READ   <key>         : Retrieve the value associated with the specified key.\n"
+            << "  - " BGRN "[x]" reset " WRITE  <key> <value> : Set a value associated with the specified key.\n"
+            << "  - " BRED "[ ]" reset " RMW    <key> <value> : Read the value associated with the specified key, and then write the specified value.\n"
+            << "  - " BRED "[ ]" reset " SCAN   <key> <count> : Retrieve the specified number of key-value pairs starting from the specified key.\n"
 
             << "=== Usage ===\n"
             << "  - All commands are case-sensitive.\n"
             << "  - Commands and their arguments must be separated by spaces.\n"
             << "  - Only ASCII characters are allowed in commands and arguments.\n"
-            << "  - Each transaction, enclosed by BEGIN_TRANSACTION and END_TRANSACTION, must include one or more operations.\n"
-            << "  - Each procedure must consist of one or more transactions.\n"
-            << "  - Each procedure must be enclosed by EXIT.\n"
 
             << "=== Examples ===\n"
             << "  > /maketx\n"
             << "  > INSERT key1 value1\n"
             << "  > WRITE key2 value2\n"
             << "  > READ key3\n"
-            << "  > /endtx\n"
+            << "  > /endtx"
         << std::endl;
     }
 

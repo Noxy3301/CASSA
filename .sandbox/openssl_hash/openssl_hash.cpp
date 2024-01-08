@@ -49,11 +49,14 @@ public:
     void push(uint64_t tid, const std::string &op_type, const std::string &key, const std::string &value) {
         LogRecord_wHash log_record(tid, op_type, key, value);
         
-        // if log record exists in buffer, set the hash value of the previous record
         if (!log_set_.empty()) {
+            // if log record exists in buffer, set the hash value of the previous record
             log_record.prev_hash_ = LogRecord_wHash::calculate_log_hash(log_set_.back());
         }
+
+        // push log to log_buffer and update 
         log_set_.emplace_back(log_record);
+        log_set_.front().prev_hash_ = LogRecord_wHash::calculate_log_hash(log_record);
     }
 
     // bool validate() const {
@@ -98,6 +101,10 @@ public:
         return true; // 全てのハッシュが一致した場合は、ログは正常である
     }
 
+    std::vector<LogRecord_wHash> get_log_set() {
+        return log_set_;
+    }
+
 private:
     std::vector<LogRecord_wHash> log_set_;
 };
@@ -121,6 +128,21 @@ std::string calculate_log_hash(const LogRecord_wHash &log) {
     return ss.str();
 }
 
+void print_log_chain(const std::vector<LogRecord_wHash>& log_set) {
+    for (size_t i = 0; i < log_set.size(); ++i) {
+        const auto& record = log_set[i];
+        std::string current_hash = LogRecord_wHash::calculate_log_hash(record);
+
+        std::cout << "Record " << i << ":" << std::endl;
+        std::cout << "    TID: " << record.tid_ << std::endl;
+        std::cout << "    Operation: " << record.op_type_ << std::endl;
+        std::cout << "    Key: " << record.key_ << std::endl;
+        std::cout << "    Value: " << record.value_ << std::endl;
+        std::cout << "    Current Hash: " << current_hash << std::endl;
+        std::cout << "    Previous Hash: " << record.prev_hash_ << std::endl << std::endl;
+    }
+}
+
 int main() {
     LogBuffer_wHash log_buffer;
 
@@ -133,6 +155,8 @@ int main() {
     } else {
         std::cout << "Log buffer has been tampered with." << std::endl;
     }
+
+    print_log_chain(log_buffer.get_log_set());
 
     return 0;
 }

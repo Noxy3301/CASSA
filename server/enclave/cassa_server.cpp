@@ -88,6 +88,8 @@ void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {
 
     num_worker_threads = worker_num;
     num_logger_threads = logger_num;
+
+    tx_balancer.init(worker_num);
 }
 
 int fcntl_set_nonblocking(int fd) {
@@ -173,9 +175,10 @@ void ecall_ssl_session_monitor() {
                 }
                 
                 // TODO: execute transaction
+                tx_balancer.putTransaction(received_data);
 
-                // debug
-                tls_write_to_session_peer(ssl_session, received_data);
+                // // debug
+                // tls_write_to_session_peer(ssl_session, received_data);
             } else if (result == 0) {
                 // remove the session from the map and reset iterator
                 // NOTE: SSL_ERROR_NONE is normal termination
@@ -318,12 +321,20 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
     }
     logger->add_tx_executor(trans);
 
+    t_print(TLS_SERVER "wID: %d | Worker thread has started\n", worker_thid);
+
     // クライアントからのデータ受信と処理
     std::string json_str;
     while (true) {
-        json_str.clear();
-        // 一旦ここを消しておいて、スレッドが動作することを確認する
-        // TODO: siloの処理を持ってくる
+        // receive data from TransactionBalancer
+        json_str = tx_balancer.getTransaction(worker_thid);
+        if (json_str.empty()) {
+            waitTime_ns(100);
+            continue;
+        }
+
+        // execute transaction
+        t_print(TLS_SERVER "wID: %d | Received data from client: %s\n", worker_thid, json_str.c_str());
     }
 
     // ワーカースレッドの終了処理
@@ -336,6 +347,7 @@ void ecall_execute_logger_task(size_t logger_thid) {
     notifier.add_logger(&logger);
     std::atomic<Logger*> *logp = &(logs[logger_thid]);
     logp->store(&logger);
+    t_print(TLS_SERVER "lID: %d | Logger thread has started\n", logger_thid);
     logger.worker();
     return;
 }

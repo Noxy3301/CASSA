@@ -7,6 +7,7 @@
 #include <cassert>
 
 #include "random.h"
+#include "../../../common/common.h"
 
 /**
  * @class TransactionQueue
@@ -64,6 +65,10 @@ public:
 
     void init(size_t num_workers) {
         transaction_queues_.resize(num_workers);
+        queue_mutexes_.clear();
+        for (size_t i = 0; i < num_workers; i++) {
+            queue_mutexes_.emplace_back(new std::mutex);
+        }
     }
 
     /**
@@ -72,8 +77,9 @@ public:
      */
     void putTransaction(const std::string &json_transaction) {
         // select worker queue randomly
-        size_t worker_id = rnd_.next() % transaction_queues_.size();
-        std::lock_guard<std::mutex> lock(queue_mutexes_[worker_id]);
+        assert(transaction_queues_.size() != 0);
+        uint64_t worker_id = rnd_.next() % transaction_queues_.size();
+        std::lock_guard<std::mutex> lock(*queue_mutexes_[worker_id].get());
         transaction_queues_[worker_id].putTransaction(json_transaction);
     }
 
@@ -84,12 +90,12 @@ public:
      */
     std::string getTransaction(size_t worker_id) {
         assert(worker_id < transaction_queues_.size()); // validate worker_id
-        std::lock_guard<std::mutex> lock(queue_mutexes_[worker_id]);
+        std::lock_guard<std::mutex> lock(*queue_mutexes_[worker_id].get());
         return transaction_queues_[worker_id].getTransaction();
     }
 
 private:
     std::vector<TransactionQueue> transaction_queues_;  // transaction queues for workers
-    std::vector<std::mutex> queue_mutexes_;  // mutexes for transaction queues
+    std::vector<std::unique_ptr<std::mutex>> queue_mutexes_;  // mutexes for transaction queues
     Xoroshiro128Plus rnd_;  // random number generator
 };

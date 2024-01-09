@@ -147,7 +147,7 @@ void start_worker_task(size_t w_thid, size_t l_thid) {
 }
 
 void start_logger_task(size_t l_thid) {
-    // ecall_execute_logger_task(server_global_eid, l_thid);
+    ecall_execute_logger_task(server_global_eid, l_thid);
 }
 
 void start_ssl_connection_acceptor_task(char* server_port, int keep_server_up) {

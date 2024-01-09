@@ -242,6 +242,18 @@ void handle_command() {
             continue;
         }
 
+        if (command == "/test") {
+            // create timestamp
+            timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            long int timestamp_sec = ts.tv_sec;
+            long int timestamp_nsec = ts.tv_nsec;
+            std::vector<std::string> op = {"INSERT hoge fuga", "INSERT piyo pao"};
+            nlohmann::json test_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, op);
+            std::string test_json_string = test_json.dump();
+            ecall_send_data(client_global_eid, test_json_string.c_str(), test_json_string.length());
+        }
+
         // handle operations if in transaction
         if (in_transaction) {
             // check if the command is a valid operation

@@ -45,7 +45,6 @@
 
 // CASSA/Utilities 
 #include "cassa_common/transaction_balancer.hpp"
-#include "cassa_common/ssl_session_handler.hpp"
 
 // OpenSSL Utilities
 #include "../../common/openssl_utility.h"
@@ -205,38 +204,45 @@ void ecall_ssl_session_monitor() {
     }
 }
 
-int json_to_procedures(std::vector<Procedure> &pro, const nlohmann::json &transactions_json) {
-    pro.clear();
-    for (const auto &operation : transactions_json["transactions"]) {
+/**
+ * @brief Converts a JSON string to a vector of `Procedure` objects.
+ * 
+ * @param procedures A vector of `Procedure` objects to store the result.
+ * @param json_str A JSON string to be converted.
+*/
+int json_to_procedures(std::vector<Procedure> &procedures, const std::string &json_str) {
+    auto json = nlohmann::json::parse(json_str);
+
+    // parse transaction
+    const auto &transactions_json = json["transaction"];
+    procedures.clear();
+
+    for (const auto &operation : transactions_json) {
         std::string operation_str = operation["operation"];
-        OpType ope;
+        OpType op_type;
 
         if (operation_str == "INSERT") {
-            ope = OpType::INSERT;
+            op_type = OpType::INSERT;
         } else if (operation_str == "READ") {
-            ope = OpType::READ;
+            op_type = OpType::READ;
         } else if (operation_str == "WRITE") {
-            ope = OpType::WRITE;
+            op_type = OpType::WRITE;
         } else {
             t_print(TLS_SERVER "Unknown operation: %s\n", operation_str.c_str());
             return -1;
-            // std::cout << "Unknown operation: " << operation_str << std::endl;
-            // assert(false);
         }
 
         std::string key_str = operation["key"];
-        std::string value_str = operation.value("value", ""); // If value does not exist (e.g., READ), set empty string
-
-        pro.emplace_back(ope, key_str, value_str); // TODO: txIDcounter
+        std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ), set empty string
+        procedures.emplace_back(op_type, key_str, value_str);
     }
 
     return 0;
 }
 
 std::string execute_transaction(TxExecutor &trans, const std::string &json_str) {
-    // convert std::string to nlohmann::json
-    nlohmann::json json = nlohmann::json::parse(json_str);
-    if (json_to_procedures(trans.pro_set_, json) != 0) {
+    // convert json(string) to procedures
+    if (json_to_procedures(trans.pro_set_, json_str) != 0) {
         // create error message (std::string)
         std::string return_message = "FIX ME";
         return return_message;
@@ -244,7 +250,7 @@ std::string execute_transaction(TxExecutor &trans, const std::string &json_str) 
 RETRY:
     trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, false); // TODO: falseをどうするか考える
     
-    trans.begin(0); // TODO: session_idを渡すようにする
+    trans.begin(""); // TODO: session_idを渡すようにする
     Status status = Status::OK;
     std::vector<std::string> values;
     std::string return_value;  // 返される値を格納するための string オブジェクトを作成
@@ -300,6 +306,7 @@ RETRY:
 
     if (trans.validationPhase()) {
         trans.writePhase();
+        t_print(DEBUG TLS_SERVER "transaction has been committed\n");
         // storeRelease(myres.local_commit_count_, loadAcquire(myres.local_commit_count_) + 1);
         // std::cout << "this transaction has been committed" << std::endl;
         // cv.notify_one();
@@ -320,12 +327,19 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         waitTime_ns(100);
     }
     logger->add_tx_executor(trans);
+    trans.epoch_timer_start = rdtscp();
 
     t_print(TLS_SERVER "wID: %d | Worker thread has started\n", worker_thid);
+
+    // for debug
+    uint64_t prev_global_epoch = 0;
 
     // クライアントからのデータ受信と処理
     std::string json_str;
     while (true) {
+        // Advance global epoch and syncronize thread local epoch
+        trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, false); // TODO: falseをどうするか考える
+        
         // receive data from TransactionBalancer
         json_str = tx_balancer.getTransaction(worker_thid);
         if (json_str.empty()) {
@@ -334,7 +348,7 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         }
 
         // execute transaction
-        t_print(TLS_SERVER "wID: %d | Received data from client: %s\n", worker_thid, json_str.c_str());
+        execute_transaction(trans, json_str);
     }
 
     // ワーカースレッドの終了処理

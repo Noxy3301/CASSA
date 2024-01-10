@@ -9,6 +9,9 @@
 #include "include/silo_logger.h"
 
 #include "../cassa_server_t.h"  // for ocall_save_pepochfile
+#include "../cassa_server.h"    // for ssl_session_handler
+#include "../../../common/openssl_utility.h" // for tls communication
+#include "../../../common/common.h" // for t_print
 
 /**
  * @brief Opens and maps a file to memory.
@@ -100,6 +103,20 @@ void NidBuffer::notify(std::uint64_t min_dl) {
         for (auto &nid : front_->buffer_) {
             // notify client here
             nid.tx_commit_time_ = rdtscp();
+
+            t_print("notify client");
+            
+            SSL *ssl = ssl_session_handler.getSession(nid.session_id_);
+
+            t_print("get ssl session");
+            if (ssl == NULL) {
+                // TODO: Notify if the client's session does not exist on the server
+                continue;
+            }
+            t_print("ssl is not null");
+            std::string msg = std::to_string(nid.id_) + "," + std::to_string(nid.thread_id_) + "," + std::to_string((nid.tx_logging_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "," + std::to_string((nid.tx_commit_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "\n";
+            t_print("hogehoge");
+            tls_write_to_session_peer(ssl, msg);
             // std::cout << "\033[32m"
             //           << "id: " << nid.id_ << ", "
             //           << "thread_id: "         << nid.thread_id_ << ", "

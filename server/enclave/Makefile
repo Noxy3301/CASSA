@@ -38,6 +38,9 @@ Enclave_Test_Key := private_test_key.pem
 
 .PHONY: all build clean run
 
+# masstreeをビルドするかどうかを指定する変数（デフォルトではビルドする）
+BUILD_MASSTREE ?= 1
+
 MASSTREE_SRC_FILES = masstree/masstree_get.cpp \
 					 masstree/masstree_insert.cpp \
 					 masstree/masstree_node.cpp \
@@ -68,8 +71,7 @@ TLS_SRC_FILES = openssl_server/tls_server.cpp
 TLS_OBJ_FILES = tls_server.o
 
 # source files
-SRC_FILES = $(MASSTREE_SRC_FILES) \
-			$(TLS_SRC_FILES) \
+SRC_FILES = $(TLS_SRC_FILES) \
 			$(SILO_CC_SRC_FILES) \
 			cassa_server.cpp \
 			../../sgx_socket/htonl.c \
@@ -95,6 +97,11 @@ OBJ_FILES = $(MASSTREE_OBJ_FILES) \
 			utility.o \
 			verify_callback.o \
 			cassa_server_t.o 
+
+# masstreeのビルド条件
+ifeq ($(BUILD_MASSTREE), 1)
+    SRC_FILES += $(MASSTREE_SRC_FILES)
+endif
 
 all:
 	$(MAKE) build

@@ -125,7 +125,15 @@ int ocall_set_client_session_id(const uint8_t* session_id_data, size_t session_i
  *       session ID from the server for first.
 */
 void request_session_id() {
-    std::string command = "/get_session_id";
+    // get current timestamp
+    timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    long int timestamp_sec = ts.tv_sec;
+    long int timestamp_nsec = ts.tv_nsec;
+
+    std::string command = std::string("/get_session_id") + " " + std::to_string(timestamp_sec) + " " + std::to_string(timestamp_nsec);
+
+    // send the command to the server
     ecall_send_data(client_global_eid, command.c_str(), command.length());
 }
 

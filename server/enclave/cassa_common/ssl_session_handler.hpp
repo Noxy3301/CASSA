@@ -4,15 +4,22 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <cassert>
 
 #include "random.h"
 
 // for t_print()
 #include "../../../common/common.h"
 
+struct SSLSession {
+    SSL* ssl_session;  // SSL session
+    long latest_timestamp_sec;  // latest timestamp (second)
+    long latest_timestamp_nsec; // latest timestamp (nanosecond)
+};
+
 class SSLSessionHandler {
 public:
-    std::map<std::string, SSL*> ssl_sessions_; // session ID -> SSL session
+    std::map<std::string, SSLSession> ssl_sessions_; // session ID -> SSL session
     Xoroshiro128Plus rnd_;  // random number generator
 
     SSLSessionHandler() {}
@@ -57,7 +64,8 @@ public:
             if (ssl_sessions_.count(session_id) == 0) break; // check duplication
         }
         // add session to the map
-        ssl_sessions_.insert(std::make_pair(session_id, ssl));
+        SSLSession new_session = {ssl, 0, 0};  // initialize timestamp
+        ssl_sessions_.insert(std::make_pair(session_id, new_session));
         return session_id;
     }
 
@@ -68,7 +76,33 @@ public:
     */
     SSL *getSession(std::string session_id) {
         if (ssl_sessions_.count(session_id) == 0) return nullptr;
-        return ssl_sessions_[session_id];
+        return ssl_sessions_[session_id].ssl_session;
+    }
+
+    void setTimestamp(std::string session_id, long timestamp_sec, long timestamp_nsec) {
+        // get SSL session corresponding to the session ID
+        auto it = ssl_sessions_.find(session_id);
+        if (it == ssl_sessions_.end()) return;  // if not found, do nothing
+    
+        // set timestamp
+        it->second.latest_timestamp_sec = timestamp_sec;
+        it->second.latest_timestamp_nsec = timestamp_nsec;
+    }
+
+    long int getTimestampSec(std::string session_id) {
+        // get SSL session corresponding to the session ID
+        auto it = ssl_sessions_.find(session_id);
+        if (it == ssl_sessions_.end()) return 0;  // if not found, do nothing
+
+        return it->second.latest_timestamp_sec;
+    }
+
+    long int getTimestampNsec(std::string session_id) {
+        // get SSL session corresponding to the session ID
+        auto it = ssl_sessions_.find(session_id);
+        if (it == ssl_sessions_.end()) return 0;  // if not found, do nothing
+
+        return it->second.latest_timestamp_nsec;
     }
 
     /**
@@ -112,7 +146,7 @@ public:
         }
 
         // clean up SSL session
-        SSL *ssl_session = it->second;
+        SSL *ssl_session = it->second.ssl_session;
         if (ssl_session) {
             SSL_free(ssl_session);
         }

@@ -98,24 +98,26 @@ void NidBuffer::notify(std::uint64_t min_dl) {
     if (front_ == NULL) return;
 
     NidBufferItem *orig_front = front_;
+    // t_print("notify start, front_->epoch_=%lu min_dl=%lu", front_->epoch_, min_dl);
     while (front_->epoch_ <= min_dl) {
-        // printf("front_->epoch_=%lu min_dl=%lu\n", front_->epoch_, min_dl);
+        // t_print("front_->epoch_=%lu min_dl=%lu\n", front_->epoch_, min_dl);
         for (auto &nid : front_->buffer_) {
             // notify client here
             nid.tx_commit_time_ = rdtscp();
 
-            t_print("notify client");
-            
+            t_print("notify client\n");
+            t_print("nid.id_=%u nid.thread_id_=%u nid.tx_logging_time_=%lu nid.tx_commit_time_=%lu, nid.tx_start_time_=%lu, nid.session_id_=%s\n", nid.id_, nid.thread_id_, nid.tx_logging_time_, nid.tx_commit_time_, nid.tx_start_time_, nid.session_id_.c_str());
             SSL *ssl = ssl_session_handler.getSession(nid.session_id_);
 
-            t_print("get ssl session");
+            t_print("get ssl session\n");
             if (ssl == NULL) {
                 // TODO: Notify if the client's session does not exist on the server
+                t_print("ssl is null\n");
                 continue;
             }
-            t_print("ssl is not null");
+            t_print("ssl is not null\n");
             std::string msg = std::to_string(nid.id_) + "," + std::to_string(nid.thread_id_) + "," + std::to_string((nid.tx_logging_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "," + std::to_string((nid.tx_commit_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "\n";
-            t_print("hogehoge");
+            t_print("hogehoge\n");
             tls_write_to_session_peer(ssl, msg);
             // std::cout << "\033[32m"
             //           << "id: " << nid.id_ << ", "

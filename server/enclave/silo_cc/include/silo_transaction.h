@@ -63,6 +63,7 @@ public:
         read_set_.clear();
         write_set_.clear();
         pro_set_.clear();
+        session_id_ = "";
 
         max_rset_.obj_ = 0;
         max_wset_.obj_ = 0;

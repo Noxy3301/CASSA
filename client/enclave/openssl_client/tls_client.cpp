@@ -39,6 +39,7 @@
 
 #include <string>
 #include <vector>
+#include <sstream>
 
 #include "include/tls_client.h"
 #include "../../../common/openssl_utility.h"
@@ -210,8 +211,11 @@ void ecall_send_data(const char *data, size_t data_size) {
     std::string response;
     tls_read_from_session_peer(ssl_session, response);
 
-    // 
-    if (data_str == "/get_session_id") {
+    // handle if reveiced data is command
+    std::string command;
+    std::istringstream iss(data_str);
+    std::getline(iss, command, ' ');    // get first token
+    if (command == "/get_session_id") {
         int ocall_ret;
         sgx_status_t ocall_status;
         t_print(TLS_CLIENT "Session ID: %s\n", response.c_str());

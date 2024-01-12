@@ -46,12 +46,15 @@ PREPARE_SGX_SSL:
 
 $(SGXSSL_HEADER_CHECK) : PREPARE_SGX_SSL
 
+# masstreeをビルドするかどうかを指定する変数（デフォルトではビルドする）
+BUILD_MASSTREE ?= 1
+
 build: $(SGXSSL_HEADER_CHECK)
-	$(MAKE) -C server
+	$(MAKE) -C server BUILD_MASSTREE=$(BUILD_MASSTREE)
 	$(MAKE) -C client
 
 build-server: $(SGXSSL_HEADER_CHECK)
-	$(MAKE) -C server
+	$(MAKE) -C server BUILD_MASSTREE=$(BUILD_MASSTREE)
 
 build-client: $(SGXSSL_HEADER_CHECK)
 	$(MAKE) -C client

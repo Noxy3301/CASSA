@@ -1,7 +1,7 @@
 #include "include/silo_transaction.h"
 
 // トランザクションのライフサイクル管理
-void TxExecutor::begin(uint64_t session_id) {
+void TxExecutor::begin(std::string session_id) {
     status_ = TransactionStatus::InFlight;
     max_wset_.obj_ = 0;
     max_rset_.obj_ = 0;

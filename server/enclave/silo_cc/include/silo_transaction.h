@@ -31,7 +31,12 @@ public:
     // operation sets
     std::vector<ReadElement> read_set_;
     std::vector<WriteElement> write_set_;
+
+    // procedure sets
     std::vector<Procedure> pro_set_;
+
+    // session id
+    std::string session_id_;
 
     // transaction status
     TransactionStatus status_;
@@ -58,13 +63,14 @@ public:
         read_set_.clear();
         write_set_.clear();
         pro_set_.clear();
+        session_id_ = "";
 
         max_rset_.obj_ = 0;
         max_wset_.obj_ = 0;
     }
 
     // トランザクションのライフサイクル管理
-    void begin(uint64_t session_id); // トランザクションの開始
+    void begin(std::string session_id); // トランザクションの開始
     void abort(); // トランザクションの中止
     bool commit(); // トランザクションのコミット
     

@@ -147,18 +147,12 @@ void start_worker_task(size_t w_thid, size_t l_thid) {
 }
 
 void start_logger_task(size_t l_thid) {
-    // ecall_execute_logger_task(server_global_eid, l_thid);
+    ecall_execute_logger_task(server_global_eid, l_thid);
 }
 
 void start_ssl_connection_acceptor_task(char* server_port, int keep_server_up) {
-    printf("start_ssl_connection_acceptor_task\n");
     ecall_ssl_connection_acceptor(server_global_eid, server_port, keep_server_up);
 }
-
-// void start_ssl_session_monitor_task() {
-//     printf("start_ssl_session_monitor_task\n");
-//     ecall_ssl_session_monitor(server_global_eid);
-// }
 
 void terminate_enclave() {
     sgx_destroy_enclave(server_global_eid);
@@ -221,6 +215,9 @@ int main(int argc, const char* argv[]) {
         goto exit;
     }
 
+    printf("- [Host] Initialize CASSA settings\n");
+    ecall_initialize_global_variables(server_global_eid, worker_num, logger_num);
+
     printf("- [Host] Launching worker/logger thread\n");
     for (auto itr = affin.nodes_.begin(); itr != affin.nodes_.end(); itr++, l_thid++) {
         logger_threads.emplace_back(start_logger_task, l_thid);
@@ -232,27 +229,12 @@ int main(int argc, const char* argv[]) {
     printf("- [Host] Launching SSL connection acceptor thread\n");
     ssl_connection_acceptor_thread = std::thread(start_ssl_connection_acceptor_task, server_port, keep_server_up);
 
-    // printf("- [Host] Launching SSL session monitor thread\n");
-    // ssl_session_monitor_thread.emplace_back(start_ssl_session_monitor_task);
-
-    printf("- [Host] Initialize CASSA settings\n");
-    ecall_initialize_global_variables(server_global_eid, 1, 1);
-
-    // printf("\n[Launching TLS server enclave]\n");
-    // result = set_up_tls_server(server_global_eid, &ret, server_port, keep_server_up);
-    // if (result != SGX_SUCCESS || ret != 0) {
-    //     print_error_message(result);
-    //     printf("Host: setup_tls_server failed\n");
-    //     goto exit;
-    // }
-
     result = ecall_ssl_session_monitor(server_global_eid);
     if (result != SGX_SUCCESS) {
         print_error_message(result);
         printf("Host: ssl_session_monitor failed\n");
         goto exit;
     }
-
 
 exit:
 

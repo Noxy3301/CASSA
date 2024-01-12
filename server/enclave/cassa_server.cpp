@@ -25,6 +25,8 @@
 */
 #include <string>
 #include <vector>
+#include <sstream>
+#include <mutex>
 
 // SGX Libraries for sgx_rand_read()
 #include "sgx_trts.h"
@@ -45,7 +47,6 @@
 
 // CASSA/Utilities 
 #include "cassa_common/transaction_balancer.hpp"
-#include "cassa_common/ssl_session_handler.hpp"
 
 // OpenSSL Utilities
 #include "../../common/openssl_utility.h"
@@ -88,6 +89,8 @@ void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {
 
     num_worker_threads = worker_num;
     num_logger_threads = logger_num;
+
+    tx_balancer.init(worker_num);
 }
 
 int fcntl_set_nonblocking(int fd) {
@@ -139,7 +142,10 @@ void ecall_ssl_session_monitor() {
         auto it = ssl_session_handler.ssl_sessions_.begin();
         while (it != ssl_session_handler.ssl_sessions_.end()) {
             std::string session_id = it->first;
-            SSL* ssl_session = it->second;
+            SSL* ssl_session = it->second.ssl_session;
+
+            // lock mutex
+            std::lock_guard<std::mutex> lock(*it->second.ssl_session_mutex);
 
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
@@ -164,7 +170,23 @@ void ecall_ssl_session_monitor() {
                 t_print(TLS_SERVER "Received data from client: %s\n", received_data.c_str());
                 
                 // handle if reveiced data is command
-                if (received_data == "/get_session_id") {
+                std::string command, token_sec, token_nsec;
+                std::istringstream iss(received_data);
+                std::getline(iss, command, ' ');    // get first token
+                if (command == "/get_session_id") {
+                    // get timestamp from the session
+                    if (!std::getline(iss, token_sec, ' ') || !std::getline(iss, token_nsec)) {
+                        t_print(TLS_SERVER "Invalid command format\n");
+                        return;
+                    }
+
+                    // convert string to long int
+                    long int timestamp_sec = std::stol(token_sec);
+                    long int timestamp_nsec = std::stol(token_nsec);
+
+                    // set timestamp to SSLSession object
+                    ssl_session_handler.setTimestamp(session_id, timestamp_sec, timestamp_nsec);
+
                     // notify session ID to client
                     t_print(TLS_SERVER "\033[32m" "Session ID: " "\033[0m" "%s\n", session_id.c_str());
                     tls_write_to_session_peer(ssl_session, session_id);
@@ -173,9 +195,10 @@ void ecall_ssl_session_monitor() {
                 }
                 
                 // TODO: execute transaction
+                tx_balancer.putTransaction(received_data);
 
-                // debug
-                tls_write_to_session_peer(ssl_session, received_data);
+                // // debug
+                // tls_write_to_session_peer(ssl_session, received_data);
             } else if (result == 0) {
                 // remove the session from the map and reset iterator
                 // NOTE: SSL_ERROR_NONE is normal termination
@@ -202,46 +225,121 @@ void ecall_ssl_session_monitor() {
     }
 }
 
-int json_to_procedures(std::vector<Procedure> &pro, const nlohmann::json &transactions_json) {
-    pro.clear();
-    for (const auto &operation : transactions_json["transactions"]) {
+/**
+ * @brief Compares two timestamps.
+ *
+ * This function compares two timestamps (seconds and nanoseconds) 
+ * to determine which one is more recent.
+ *
+ * @param timestamp_sec The seconds part of the new timestamp to compare.
+ * @param timestamp_nsec The nanoseconds part of the new timestamp to compare.
+ * @param latest_timestamp_sec The seconds part of the latest known timestamp.
+ * @param latest_timestamp_nsec The nanoseconds part of the latest known timestamp.
+ *
+ * @return Returns 1 if the new timestamp is more recent than the latest timestamp.
+ *         Returns -1 if the new timestamp is older than the latest timestamp.
+ *         Returns 0 if both timestamps are equal.
+ */
+int compare_timestamps(long int timestamp_sec,
+                       long int timestamp_nsec,
+                       long int latest_timestamp_sec,
+                       long int latest_timestamp_nsec) {
+    if (timestamp_sec > latest_timestamp_sec) {
+        return 1;
+    } else if (timestamp_sec < latest_timestamp_sec) {
+        return -1;
+    } else {
+        if (timestamp_nsec > latest_timestamp_nsec) {
+            return 1;
+        } else if (timestamp_nsec < latest_timestamp_nsec) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+}
+
+/**
+ * @brief Converts a JSON string to a vector of `Procedure` objects.
+ * 
+ * @param session_id A string to store the client session ID.
+ * @param procedures A vector of `Procedure` objects to store the result.
+ * @param json_str A JSON string to be converted.
+ * 
+ * @return Returns 0 if the conversion is successful.
+ *         Returns -1 if the timestamp is older than the latest timestamp.
+ *         Returns -2 if the operation is unknown.
+*/
+int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedures, const std::string &json_str) {
+    // parse json
+    auto json = nlohmann::json::parse(json_str);
+    std::string client_session_id = json["client_sessionID"];
+    long int timestamp_sec = json["timestamp_sec"].get<long int>();
+    long int timestamp_nsec = json["timestamp_nsec"].get<long int>();
+    session_id = client_session_id;
+
+    // Check timestamp to prevent replay attack
+    if (compare_timestamps(timestamp_sec, timestamp_nsec,
+                           ssl_session_handler.getTimestampSec(client_session_id),
+                           ssl_session_handler.getTimestampNsec(client_session_id)) <= 0) {
+        t_print(TLS_SERVER "Replay attack detected or old timestamp received.\n");
+        return -1;
+    }
+
+    // Update timestamp in SSL session
+    ssl_session_handler.setTimestamp(client_session_id, timestamp_sec, timestamp_nsec);
+    t_print("client_session_id: %s, timestamp_sec: %ld, timestamp_nsec: %ld\n", client_session_id.c_str(), timestamp_sec, timestamp_nsec); // for debug
+
+    // retrieve operations
+    const auto &transactions_json = json["transaction"];
+    procedures.clear();
+
+    for (const auto &operation : transactions_json) {
         std::string operation_str = operation["operation"];
-        OpType ope;
+        OpType op_type;
 
         if (operation_str == "INSERT") {
-            ope = OpType::INSERT;
+            op_type = OpType::INSERT;
         } else if (operation_str == "READ") {
-            ope = OpType::READ;
+            op_type = OpType::READ;
         } else if (operation_str == "WRITE") {
-            ope = OpType::WRITE;
+            op_type = OpType::WRITE;
         } else {
             t_print(TLS_SERVER "Unknown operation: %s\n", operation_str.c_str());
-            return -1;
-            // std::cout << "Unknown operation: " << operation_str << std::endl;
-            // assert(false);
+            return -2;
         }
 
         std::string key_str = operation["key"];
-        std::string value_str = operation.value("value", ""); // If value does not exist (e.g., READ), set empty string
-
-        pro.emplace_back(ope, key_str, value_str); // TODO: txIDcounter
+        std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ), set empty string
+        procedures.emplace_back(op_type, key_str, value_str);
+        t_print(TLS_SERVER "operation: %s, key: %s, value: %s\n", operation_str.c_str(), key_str.c_str(), value_str.c_str()); // for debug
     }
 
     return 0;
 }
 
 std::string execute_transaction(TxExecutor &trans, const std::string &json_str) {
-    // convert std::string to nlohmann::json
-    nlohmann::json json = nlohmann::json::parse(json_str);
-    if (json_to_procedures(trans.pro_set_, json) != 0) {
-        // create error message (std::string)
-        std::string return_message = "FIX ME";
+    // convert json(string) to procedures
+    int convert_result = json_to_procedures(trans.session_id_, trans.pro_set_, json_str);
+
+    // Check the result of conversion
+    if (convert_result != 0) {
+        std::string return_message;
+        if (convert_result == -1) {
+            return_message = "Error: Replay attack detected or old timestamp received.";
+        } else if (convert_result == -2) {
+            return_message = "Error: Unknown operation in transaction.";
+        } else {
+            return_message = "Error: Unexpected error occurred during transaction processing.";
+        }
         return return_message;
     }
+
+    // Proceed with transaction execution if no errors
 RETRY:
     trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, false); // TODO: falseをどうするか考える
     
-    trans.begin(0); // TODO: session_idを渡すようにする
+    trans.begin(trans.session_id_);
     Status status = Status::OK;
     std::vector<std::string> values;
     std::string return_value;  // 返される値を格納するための string オブジェクトを作成
@@ -297,6 +395,7 @@ RETRY:
 
     if (trans.validationPhase()) {
         trans.writePhase();
+        t_print(DEBUG TLS_SERVER "transaction has been committed\n");
         // storeRelease(myres.local_commit_count_, loadAcquire(myres.local_commit_count_) + 1);
         // std::cout << "this transaction has been committed" << std::endl;
         // cv.notify_one();
@@ -317,13 +416,25 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         waitTime_ns(100);
     }
     logger->add_tx_executor(trans);
+    trans.epoch_timer_start = rdtscp();
+
+    t_print(TLS_SERVER "wID: %d | Worker thread has started\n", worker_thid);
 
     // クライアントからのデータ受信と処理
     std::string json_str;
     while (true) {
-        json_str.clear();
-        // 一旦ここを消しておいて、スレッドが動作することを確認する
-        // TODO: siloの処理を持ってくる
+        // Advance global epoch and syncronize thread local epoch
+        trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, false); // TODO: falseをどうするか考える
+        
+        // receive data from TransactionBalancer
+        json_str = tx_balancer.getTransaction(worker_thid);
+        if (json_str.empty()) {
+            waitTime_ns(100);
+            continue;
+        }
+
+        // execute transaction
+        execute_transaction(trans, json_str);
     }
 
     // ワーカースレッドの終了処理
@@ -336,6 +447,7 @@ void ecall_execute_logger_task(size_t logger_thid) {
     notifier.add_logger(&logger);
     std::atomic<Logger*> *logp = &(logs[logger_thid]);
     logp->store(&logger);
+    t_print(TLS_SERVER "lID: %d | Logger thread has started\n", logger_thid);
     logger.worker();
     return;
 }

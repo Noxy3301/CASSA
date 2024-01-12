@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <mutex>
 
 // SGX Libraries for sgx_rand_read()
 #include "sgx_trts.h"
@@ -142,6 +143,9 @@ void ecall_ssl_session_monitor() {
         while (it != ssl_session_handler.ssl_sessions_.end()) {
             std::string session_id = it->first;
             SSL* ssl_session = it->second.ssl_session;
+
+            // lock mutex
+            std::lock_guard<std::mutex> lock(*it->second.ssl_session_mutex);
 
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {

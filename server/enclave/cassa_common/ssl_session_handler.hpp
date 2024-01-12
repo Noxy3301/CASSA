@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <cassert>
+#include <mutex>
 
 #include "random.h"
 
@@ -15,6 +16,11 @@ struct SSLSession {
     SSL* ssl_session;  // SSL session
     long latest_timestamp_sec;  // latest timestamp (second)
     long latest_timestamp_nsec; // latest timestamp (nanosecond)
+    std::unique_ptr<std::mutex> ssl_session_mutex;  // mutex for SSL session
+
+    SSLSession(SSL* ssl) 
+        : ssl_session(ssl), latest_timestamp_sec(0), 
+          latest_timestamp_nsec(0), ssl_session_mutex(std::make_unique<std::mutex>()) {}
 };
 
 class SSLSessionHandler {
@@ -64,19 +70,21 @@ public:
             if (ssl_sessions_.count(session_id) == 0) break; // check duplication
         }
         // add session to the map
-        SSLSession new_session = {ssl, 0, 0};  // initialize timestamp
-        ssl_sessions_.insert(std::make_pair(session_id, new_session));
+        SSLSession new_session(ssl);
+        ssl_sessions_.emplace(std::make_pair(session_id, std::move(new_session)));
         return session_id;
     }
 
     /**
-     * @brief Get SSL session from the map
-     * @param session_id(std::string) Session ID
-     * @return SSL session (nullptr if not found)
+     * @brief Retrieves the SSLSession structure associated with a given session ID.
+     * @param session_id Session ID
+     * @return Pointer to the SSLSession structure, or nullptr if not found.
     */
-    SSL *getSession(std::string session_id) {
-        if (ssl_sessions_.count(session_id) == 0) return nullptr;
-        return ssl_sessions_[session_id].ssl_session;
+    SSLSession* getSession(std::string session_id) {
+        auto it = ssl_sessions_.find(session_id);
+        if (it == ssl_sessions_.end()) return nullptr;  // if not found, return nullptr
+
+        return &(it->second);  // return SSLSession pointer
     }
 
     void setTimestamp(std::string session_id, long timestamp_sec, long timestamp_nsec) {

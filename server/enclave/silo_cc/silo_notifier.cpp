@@ -12,6 +12,7 @@
 #include "../cassa_server.h"    // for ssl_session_handler
 #include "../../../common/openssl_utility.h" // for tls communication
 #include "../../../common/common.h" // for t_print
+#include "../cassa_common/ssl_session_handler.hpp" // for SSLSession
 
 /**
  * @brief Opens and maps a file to memory.
@@ -107,25 +108,19 @@ void NidBuffer::notify(std::uint64_t min_dl) {
 
             t_print("notify client\n");
             t_print("nid.id_=%u nid.thread_id_=%u nid.tx_logging_time_=%lu nid.tx_commit_time_=%lu, nid.tx_start_time_=%lu, nid.session_id_=%s\n", nid.id_, nid.thread_id_, nid.tx_logging_time_, nid.tx_commit_time_, nid.tx_start_time_, nid.session_id_.c_str());
-            SSL *ssl = ssl_session_handler.getSession(nid.session_id_);
 
-            t_print("get ssl session\n");
-            if (ssl == NULL) {
+            SSLSession *session = ssl_session_handler.getSession(nid.session_id_);
+            if (session == nullptr) {
                 // TODO: Notify if the client's session does not exist on the server
                 t_print("ssl is null\n");
                 continue;
+            } else {
+                SSL *ssl = session->ssl_session;
+                std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
+                std::string msg = std::to_string(nid.id_) + "," + std::to_string(nid.thread_id_) + "," + std::to_string((nid.tx_logging_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "," + std::to_string((nid.tx_commit_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "\n";
+                t_print("hogehoge\n");
+                tls_write_to_session_peer(ssl, msg); 
             }
-            t_print("ssl is not null\n");
-            std::string msg = std::to_string(nid.id_) + "," + std::to_string(nid.thread_id_) + "," + std::to_string((nid.tx_logging_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "," + std::to_string((nid.tx_commit_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "\n";
-            t_print("hogehoge\n");
-            tls_write_to_session_peer(ssl, msg);
-            // std::cout << "\033[32m"
-            //           << "id: " << nid.id_ << ", "
-            //           << "thread_id: "         << nid.thread_id_ << ", "
-            //           << "tx process time: "   << (nid.tx_logging_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000) << "ms, "
-            //           << "tx execution time: " << (nid.tx_commit_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)  << "ms" 
-            //           << "\033[0m" << std::endl;
-            
         }
 
         // clear buffer

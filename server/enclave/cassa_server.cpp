@@ -51,6 +51,7 @@
 // OpenSSL Utilities
 #include "../../common/openssl_utility.h"
 #include "openssl_server/include/tls_server.h"
+#include "cassa_common/json_message_formats.hpp"
 
 // Third Party Libraries
 #include "../../common/third_party/json.hpp"
@@ -288,7 +289,7 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
 
     // Update timestamp in SSL session
     ssl_session_handler.setTimestamp(client_session_id, timestamp_sec, timestamp_nsec);
-    t_print("client_session_id: %s, timestamp_sec: %ld, timestamp_nsec: %ld\n", client_session_id.c_str(), timestamp_sec, timestamp_nsec); // for debug
+    t_print(DEBUG TLS_SERVER "client_session_id: %s, timestamp_sec: %ld, timestamp_nsec: %ld\n", client_session_id.c_str(), timestamp_sec, timestamp_nsec); // for debug
 
     // retrieve operations
     const auto &transactions_json = json["transaction"];
@@ -312,62 +313,81 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
         std::string key_str = operation["key"];
         std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ), set empty string
         procedures.emplace_back(op_type, key_str, value_str);
-        t_print(TLS_SERVER "operation: %s, key: %s, value: %s\n", operation_str.c_str(), key_str.c_str(), value_str.c_str()); // for debug
+
+        if (op_type == OpType::READ) {
+            t_print(DEBUG TLS_SERVER "operation: %s, key: %s\n", operation_str.c_str(), key_str.c_str());
+        } else {
+            t_print(DEBUG TLS_SERVER "operation: %s, key: %s, value: %s\n", operation_str.c_str(), key_str.c_str(), value_str.c_str());
+        }
     }
 
     return 0;
 }
 
-std::string execute_transaction(TxExecutor &trans, const std::string &json_str) {
+/**
+ * @brief Executes a transaction based on the given JSON string.
+ * 
+ * @param trans A reference to the TxExecutor object
+ * @param json_str A JSON formatted string representing the transaction operations.
+ * @param error_message_content A reference to a string where error messages, if any,
+ *                              will be stored.
+ * 
+ * @return Returns 0 if the transaction is successfully committed.
+ *         Returns -1 if there is a problem with the JSON conversion.
+ *           (e.g., replay attack detection or unknown operation.)
+ *         Returns -2 if the transaction execution fails and is aborted.
+ */
+int execute_transaction(TxExecutor &trans, const std::string &json_str, std::string &error_message_content) {
     // convert json(string) to procedures
     int convert_result = json_to_procedures(trans.session_id_, trans.pro_set_, json_str);
 
-    // Check the result of conversion
-    if (convert_result != 0) {
-        std::string return_message;
-        if (convert_result == -1) {
-            return_message = "Error: Replay attack detected or old timestamp received.";
-        } else if (convert_result == -2) {
-            return_message = "Error: Unknown operation in transaction.";
-        } else {
-            return_message = "Error: Unexpected error occurred during transaction processing.";
-        }
-        return return_message;
+    // Check the result of conversion using switch
+    switch (convert_result) {
+        case 0:
+            break;  // Success, do nothing
+        case -1:
+            error_message_content = "Error: Replay attack detected or old timestamp received.";
+            return -1;  // json conversion failed
+        case -2:
+            error_message_content = "Error: Unknown operation in transaction.";
+            return -1;  // json conversion failed
+        default:
+            error_message_content = "Error: Unexpected error occurred during transaction processing.";
+            return -1;  // json conversion failed
     }
 
-    // Proceed with transaction execution if no errors
+    // Proceed with transaction execution if the conversion is successful
 RETRY:
     trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, false); // TODO: falseをどうするか考える
     
     trans.begin(trans.session_id_);
     Status status = Status::OK;
-    std::vector<std::string> values;
-    std::string return_value;  // 返される値を格納するための string オブジェクトを作成
-    std::string return_message;
+    std::string read_value; // Store the value retrieved by the read operation
+
     for (auto itr = trans.pro_set_.begin(); itr != trans.pro_set_.end(); itr++) {
         switch ((*itr).ope_) {
             case OpType::INSERT:
                 status = trans.insert((*itr).key_, (*itr).value_);
                 if (status == Status::WARN_ALREADY_EXISTS) {
-                    t_print(TLS_SERVER "key: %s is already exists\n", (*itr).key_.c_str());
-                    return_message += "key: " + (*itr).key_ + " is already exists\n";
+                    t_print(DEBUG TLS_SERVER "Key: %s is already exists\n", (*itr).key_.c_str());
+                    error_message_content += "Key: " + (*itr).key_ + " is already exists\n";
                 }
                 break;
             case OpType::READ:
-                // TODO: 恐らくrmvでreadで取得したValueを使うはずだから渡せるように用意する
-                status = trans.read((*itr).key_, return_value);
+                status = trans.read((*itr).key_, read_value);
                 if (status == Status::WARN_NOT_FOUND) {
-                    t_print(TLS_SERVER "key: %s is not found\n", (*itr).key_.c_str());
-                    return_message += "key: " + (*itr).key_ + " is not found\n";
+                    t_print(DEBUG TLS_SERVER "Key: %s is not found\n", (*itr).key_.c_str());
+                    error_message_content += "Key: " + (*itr).key_ + " is not found\n";
                 } else if (status == Status::OK) {
-                    values.push_back(return_value);
+                    trans.nid_.read_key_value_pairs.emplace_back((*itr).key_, read_value);
+                    t_print(DEBUG TLS_SERVER "Key: %s, Value: %s\n", (*itr).key_.c_str(), read_value.c_str());
                 }
                 break;
             case OpType::WRITE:
                 status = trans.write((*itr).key_, (*itr).value_);
                 if (status == Status::WARN_NOT_FOUND) {
-                    t_print(TLS_SERVER "key: %s is not found\n", (*itr).key_.c_str());
-                    return_message += "key: " + (*itr).key_ + " is not found\n";
+                    t_print(DEBUG TLS_SERVER "Key: %s is not found\n", (*itr).key_.c_str());
+                    error_message_content += "Key: " + (*itr).key_ + " is not found\n";
                 }
                 break;
             // case OpType::RMW:
@@ -383,24 +403,18 @@ RETRY:
                 assert(false);  // ここには来ないはず
                 break;
         }
-
+    
         if (status != Status::OK) {
-            // std::cout << "transaction has been aborted." << std::endl;
-            // t_print(TLS_SERVER 
             trans.abort();
-            return_message += "transaction has been aborted.\n";
-            return return_message;
+            error_message_content += "Transaction has been aborted.\n";
+            return -2; // transaction execution failed
         }
     }
 
     if (trans.validationPhase()) {
         trans.writePhase();
         t_print(DEBUG TLS_SERVER "transaction has been committed\n");
-        // storeRelease(myres.local_commit_count_, loadAcquire(myres.local_commit_count_) + 1);
-        // std::cout << "this transaction has been committed" << std::endl;
-        // cv.notify_one();
-        // TODO: この処理をnotifier側でやる
-        // ocall_print_commit_message(txID, worker_thid);
+        return 0;
     } else {
         trans.abort();
         goto RETRY;
@@ -434,7 +448,51 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         }
 
         // execute transaction
-        execute_transaction(trans, json_str);
+        std::string error_message_content = "OK";
+        int result = execute_transaction(trans, json_str, error_message_content);
+        t_print(DEBUG TLS_SERVER "result: %d\n", result);
+
+        // If the result is 0 (i.e., success) and the transaction is read-only,
+        // send a success message to the client directly from here
+        if (result == 0) {
+            t_print("trans.write_set_.size() = %d\n", trans.write_set_.size());
+            if (trans.write_set_.size() == 0) {
+                // create json format of message
+                t_print(DEBUG TLS_SERVER "read-only transaction, read items: %d\n", trans.nid_.read_key_value_pairs.size());
+                for (const auto &pair : trans.nid_.read_key_value_pairs) {
+                    t_print(DEBUG TLS_SERVER "key: %s, value: %s\n", pair.first.c_str(), pair.second.c_str());
+                }
+
+                nlohmann::json json_message = create_message(result, error_message_content, trans.nid_.read_key_value_pairs);
+                std::string json_message_dump = json_message.dump();
+                t_print(DEBUG TLS_SERVER "json_message_dump: %s\n", json_message_dump.c_str());
+
+                // send error message to client
+                SSLSession *session = ssl_session_handler.getSession(trans.session_id_);
+                if (session == nullptr) {
+                    t_print(DEBUG TLS_SERVER "session == nullptr, skipped\n");
+                } else {
+                    SSL *ssl = session->ssl_session;
+                    std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
+                    tls_write_to_session_peer(ssl, json_message_dump);
+                }
+            }
+        } else {
+            // create json format of message
+            t_print(DEBUG TLS_SERVER "error_message_content: %s\n", error_message_content.c_str());
+            nlohmann::json json_message = create_message(result, error_message_content);
+            std::string json_message_dump = json_message.dump();
+
+            // send error message to client
+            SSLSession *session = ssl_session_handler.getSession(trans.session_id_);
+            if (session == nullptr) {
+                t_print(DEBUG TLS_SERVER "session == nullptr, skipped\n");
+            } else {
+                SSL *ssl = session->ssl_session;
+                std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
+                tls_write_to_session_peer(ssl, json_message_dump);
+            }
+        }
     }
 
     // ワーカースレッドの終了処理

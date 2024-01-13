@@ -13,6 +13,7 @@
 #include "../../../common/openssl_utility.h" // for tls communication
 #include "../../../common/common.h" // for t_print
 #include "../cassa_common/ssl_session_handler.hpp" // for SSLSession
+#include "../cassa_common/json_message_formats.hpp" // for create_message
 
 /**
  * @brief Opens and maps a file to memory.
@@ -99,27 +100,26 @@ void NidBuffer::notify(std::uint64_t min_dl) {
     if (front_ == NULL) return;
 
     NidBufferItem *orig_front = front_;
-    // t_print("notify start, front_->epoch_=%lu min_dl=%lu", front_->epoch_, min_dl);
     while (front_->epoch_ <= min_dl) {
-        // t_print("front_->epoch_=%lu min_dl=%lu\n", front_->epoch_, min_dl);
         for (auto &nid : front_->buffer_) {
             // notify client here
             nid.tx_commit_time_ = rdtscp();
-
             t_print("notify client\n");
-            t_print("nid.id_=%u nid.thread_id_=%u nid.tx_logging_time_=%lu nid.tx_commit_time_=%lu, nid.tx_start_time_=%lu, nid.session_id_=%s\n", nid.id_, nid.thread_id_, nid.tx_logging_time_, nid.tx_commit_time_, nid.tx_start_time_, nid.session_id_.c_str());
-
             SSLSession *session = ssl_session_handler.getSession(nid.session_id_);
             if (session == nullptr) {
                 // TODO: Notify if the client's session does not exist on the server
-                t_print("ssl is null\n");
+                t_print("session == nullptr\n");
                 continue;
             } else {
+                // create json format of message
+                nlohmann::json json_message = create_message(0, "OK", nid.read_key_value_pairs);
+                std::string json_message_dump = json_message.dump();
+
+                // send message to client
                 SSL *ssl = session->ssl_session;
                 std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
-                std::string msg = std::to_string(nid.id_) + "," + std::to_string(nid.thread_id_) + "," + std::to_string((nid.tx_logging_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "," + std::to_string((nid.tx_commit_time_ - nid.tx_start_time_) / (CLOCKS_PER_US*1000)) + "\n";
                 t_print("hogehoge\n");
-                tls_write_to_session_peer(ssl, msg); 
+                tls_write_to_session_peer(ssl, json_message_dump); 
             }
         }
 

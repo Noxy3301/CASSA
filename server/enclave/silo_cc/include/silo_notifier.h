@@ -27,17 +27,24 @@ private:
 
 class NotificationId {
 public:
-    uint32_t id_;
-    uint32_t thread_id_;
+    // session info
+    std::string session_id_;
+    uint64_t session_tx_id_;    // in-session transaction ID
+
+    // TID used for comparing with DurableEpoch
+    uint64_t tid_;
+
+    // transaction info (for read items)
+    std::vector<std::pair<std::string, std::string>> read_key_value_pairs; // key, value
+
+    // analysis info
     uint64_t tx_start_time_;        // transaction start time
     uint64_t tx_logging_time_ = 0;  // transaction logging time
     uint64_t tx_commit_time_ = 0;   // transaction commit time
-    uint64_t tid_;
-    std::string session_id_;
 
-    NotificationId(uint32_t id, uint32_t thread_id, uint64_t tx_start_time, std::string session_id) 
-        : id_(id), thread_id_(thread_id), tx_start_time_(tx_start_time), session_id_(session_id) {}
-    NotificationId() { NotificationId(0, 0, 0, ""); }    // TODO: これどうしよう
+    NotificationId(std::string session_id, uint64_t session_tx_id, uint64_t tx_start_time)
+        : session_id_(session_id), session_tx_id_(session_tx_id), tx_start_time_(tx_start_time) {}
+    NotificationId() { NotificationId("", 0, 0); }
 
     // NOTE: NotificationIdのtidはLogBufferPool::push()のタイミングで書き込まれる
     uint64_t epoch() {

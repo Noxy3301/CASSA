@@ -5,8 +5,10 @@ void TxExecutor::begin(std::string session_id) {
     status_ = TransactionStatus::InFlight;
     max_wset_.obj_ = 0;
     max_rset_.obj_ = 0;
+    read_set_.clear();
+    write_set_.clear();
 
-    nid_ = NotificationId(nid_counter_++, worker_thid_, rdtscp(), session_id);
+    nid_ = NotificationId(session_id, nid_counter_++, rdtscp());
 }
 
 void TxExecutor::abort() {
@@ -332,10 +334,6 @@ void TxExecutor::writePhase() {
                 break;
         }
     }
-
-    // clear read_set_ and write_set_
-    read_set_.clear();
-    write_set_.clear();
 }
 
 // Write-Ahead Logging

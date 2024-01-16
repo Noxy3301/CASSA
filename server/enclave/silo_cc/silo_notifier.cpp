@@ -104,7 +104,6 @@ void NidBuffer::notify(std::uint64_t min_dl) {
         for (auto &nid : front_->buffer_) {
             // notify client here
             nid.tx_commit_time_ = rdtscp();
-            t_print("notify client\n");
             SSLSession *session = ssl_session_handler.getSession(nid.session_id_);
             if (session == nullptr) {
                 // TODO: Notify if the client's session does not exist on the server
@@ -112,13 +111,12 @@ void NidBuffer::notify(std::uint64_t min_dl) {
                 continue;
             } else {
                 // create json format of message
-                nlohmann::json json_message = create_message(0, "OK", nid.read_key_value_pairs);
+                nlohmann::json json_message = create_message(0, "Notifier: OK", nid.read_key_value_pairs);
                 std::string json_message_dump = json_message.dump();
 
                 // send message to client
                 SSL *ssl = session->ssl_session;
                 std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
-                t_print("hogehoge\n");
                 tls_write_to_session_peer(ssl, json_message_dump); 
             }
         }

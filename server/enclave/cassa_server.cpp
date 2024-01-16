@@ -313,12 +313,6 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
         std::string key_str = operation["key"];
         std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ), set empty string
         procedures.emplace_back(op_type, key_str, value_str);
-
-        if (op_type == OpType::READ) {
-            t_print(DEBUG TLS_SERVER "operation: %s, key: %s\n", operation_str.c_str(), key_str.c_str());
-        } else {
-            t_print(DEBUG TLS_SERVER "operation: %s, key: %s, value: %s\n", operation_str.c_str(), key_str.c_str(), value_str.c_str());
-        }
     }
 
     return 0;
@@ -380,7 +374,6 @@ RETRY:
                     error_message_content += "Key: " + (*itr).key_ + " is not found\n";
                 } else if (status == Status::OK) {
                     trans.nid_.read_key_value_pairs.emplace_back((*itr).key_, read_value);
-                    t_print(DEBUG TLS_SERVER "Key: %s, Value: %s\n", (*itr).key_.c_str(), read_value.c_str());
                 }
                 break;
             case OpType::WRITE:
@@ -450,47 +443,31 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         // execute transaction
         std::string error_message_content = "OK";
         int result = execute_transaction(trans, json_str, error_message_content);
-        t_print(DEBUG TLS_SERVER "result: %d\n", result);
 
-        // If the result is 0 (i.e., success) and the transaction is read-only,
-        // send a success message to the client directly from here
-        if (result == 0) {
-            t_print("trans.write_set_.size() = %d\n", trans.write_set_.size());
-            if (trans.write_set_.size() == 0) {
-                // create json format of message
-                t_print(DEBUG TLS_SERVER "read-only transaction, read items: %d\n", trans.nid_.read_key_value_pairs.size());
-                for (const auto &pair : trans.nid_.read_key_value_pairs) {
-                    t_print(DEBUG TLS_SERVER "key: %s, value: %s\n", pair.first.c_str(), pair.second.c_str());
-                }
+        /**
+         * If the result is 0 (i.e., success) and the transaction is read-only,
+         * send a success message to the client directly from here
+        */
+        std::string json_message_dump;
+        bool send_responce = false;
+        if (result == 0 && trans.write_set_.size() == 0) {
+            t_print(DEBUG TLS_SERVER "read-only transaction, read items: %d\n", trans.nid_.read_key_value_pairs.size());
+            json_message_dump = create_message(result, error_message_content, trans.nid_.read_key_value_pairs).dump();
+            send_responce = true;
+        } else if (result != 0) {
+            json_message_dump = create_message(result, error_message_content).dump();
+            send_responce = true;
+        }
 
-                nlohmann::json json_message = create_message(result, error_message_content, trans.nid_.read_key_value_pairs);
-                std::string json_message_dump = json_message.dump();
-                t_print(DEBUG TLS_SERVER "json_message_dump: %s\n", json_message_dump.c_str());
-
-                // send error message to client
-                SSLSession *session = ssl_session_handler.getSession(trans.session_id_);
-                if (session == nullptr) {
-                    t_print(DEBUG TLS_SERVER "session == nullptr, skipped\n");
-                } else {
-                    SSL *ssl = session->ssl_session;
-                    std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
-                    tls_write_to_session_peer(ssl, json_message_dump);
-                }
-            }
-        } else {
-            // create json format of message
-            t_print(DEBUG TLS_SERVER "error_message_content: %s\n", error_message_content.c_str());
-            nlohmann::json json_message = create_message(result, error_message_content);
-            std::string json_message_dump = json_message.dump();
-
-            // send error message to client
+        // send message to client if read-only transaction or transaction execution failed
+        if (send_responce) {
             SSLSession *session = ssl_session_handler.getSession(trans.session_id_);
-            if (session == nullptr) {
-                t_print(DEBUG TLS_SERVER "session == nullptr, skipped\n");
-            } else {
+            if (session != nullptr) {
                 SSL *ssl = session->ssl_session;
                 std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
                 tls_write_to_session_peer(ssl, json_message_dump);
+            } else {
+                t_print(DEBUG TLS_SERVER "session == nullptr, skipped\n");
             }
         }
     }

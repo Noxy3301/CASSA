@@ -132,8 +132,16 @@ void LogBuffer::write(PosixWriter &logfile, size_t &byte_count) {
 
     // create json format of logs
     std::string json_log = create_json_log();
-    // std::cout << json_log << std::endl;
-    logfile.write((void*)json_log.data(), json_log.size());
+    
+    // Prepare the buffer to include the size of the data for recovery
+    uint32_t log_size = static_cast<uint32_t>(json_log.size());
+    std::string size_str(reinterpret_cast<char*>(&log_size), sizeof(uint32_t));
+
+    // Concatenate the size string with the log data
+    std::string buffer = size_str + json_log;
+
+    // Write the buffer to the log file
+    logfile.write((void*)buffer.data(), buffer.size());
 
     // clear for next transactions
     log_set_size_ = 0;

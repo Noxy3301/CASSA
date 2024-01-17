@@ -79,11 +79,14 @@ std::string LogBuffer::calculate_hash(const uint64_t tid,
     std::string data = std::to_string(tid) + op_type + key + value;
 
     // calculate SHA-256 hash
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, data.c_str(), data.size());
-    SHA256_Final(hash, &sha256);
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int lengthOfHash = 0;
+
+    EVP_MD_CTX* sha256 = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(sha256, EVP_sha256(), NULL);
+    EVP_DigestUpdate(sha256, data.c_str(), data.size());
+    EVP_DigestFinal_ex(sha256, hash, &lengthOfHash);
+    EVP_MD_CTX_free(sha256);
 
     // convert hash to hex string without using stringstream
     char buffer[3]; // 2 characters + null terminator for each byte

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <atomic>
 #include <memory>   // for std::align
-#include <openssl/sha.h>    // for SHA256
+#include <openssl/evp.h>    // for SHA256
 
 #include "../../cassa_common/consts.h"
 

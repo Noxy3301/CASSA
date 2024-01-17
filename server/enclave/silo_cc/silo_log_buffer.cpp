@@ -1,4 +1,5 @@
 #include "include/silo_log_buffer.h"
+#include "../../../common/third_party/json.hpp"
 
 /**
  * @brief Adds a set of write records to the log buffer and updates epoch tracking.
@@ -72,38 +73,34 @@ bool LogBuffer::empty() {
 
 std::string LogBuffer::create_json_log() {
     assert(log_set_size_ > 0);
-    std::string json = "{";
 
-    // compute check_sum
+    // Compute check_sum
     uint64_t check_sum = 0;
-    for (size_t i = 0; i < log_set_.size(); i++) {
-        check_sum += log_set_[i].tid_;
+    for (const auto &record : log_set_) {
+        check_sum += record.tid_;
     }
 
-    // create log_header
-    // NOTE: 本来はlocal_durable_epochをログと一緒に書き出す必要があるけど、pepochで別に書き出しているので省略
-    json += "\"log_header\": {";
-    json += "\"check_sum\": " + std::to_string(check_sum) + ",";
-    json += "\"log_record_num\": " + std::to_string(log_set_.size());
-    json += "},";
+    // Create log_header
+    nlohmann::json json_log = nlohmann::json::object();
+    json_log["log_header"] = {
+        {"check_sum", check_sum},
+        {"log_record_num", log_set_.size()}
+    };
 
-    // create log_set
-    json += "\"log_set\": [";
-    for (size_t i = 0; i < log_set_.size(); i++) {
-        json += "{";
-        json += "\"tid\": " + std::to_string(log_set_[i].tid_) + ",";
-        json += "\"op_type\": \"" + OpType_to_string(log_set_[i].op_type_) + "\",";
-        json += "\"key\": \"" + log_set_[i].key_ + "\",";
-        json += "\"val\": \"" + log_set_[i].value_ + "\"";
-        json += "}";
-        if (i < log_set_.size() - 1) {
-            json += ",";
-        }
+    // Create log_set
+    nlohmann::json json_log_set = nlohmann::json::array();
+    for (const auto& record : log_set_) {
+        nlohmann::json json_record = nlohmann::json::object();
+        json_record["tid"] = record.tid_;
+        json_record["op_type"] = OpType_to_string(record.op_type_);
+        json_record["key"] = record.key_;
+        json_record["val"] = record.value_;
+
+        json_log_set.push_back(json_record);
     }
-    json += "]}";
-    // CHECK: 最後に,を入れておいた方が良いのでは？
+    json_log["log_set"] = json_log_set;
 
-    return json;
+    return json_log.dump();
 }
 
 std::string LogBuffer::OpType_to_string(OpType op_type) {

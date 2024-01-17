@@ -71,19 +71,37 @@ bool LogBuffer::empty() {
     return nid_set_.empty();
 }
 
+std::string LogBuffer::calculate_hash(const uint64_t tid,
+                                      const std::string &op_type,
+                                      const std::string &key,
+                                      const std::string &value) {
+    // combine all fields into a single string (except prev_hash)
+    std::string data = std::to_string(tid) + op_type + key + value;
+
+    // calculate SHA-256 hash
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, data.c_str(), data.size());
+    SHA256_Final(hash, &sha256);
+
+    // convert hash to hex string without using stringstream
+    char buffer[3]; // 2 characters + null terminator for each byte
+    std::string hex_str;
+    for (unsigned char i : hash) {
+        snprintf(buffer, sizeof(buffer), "%02x", i);
+        hex_str += buffer;
+    }
+    return hex_str;
+}
+
 std::string LogBuffer::create_json_log() {
     assert(log_set_size_ > 0);
-
-    // Compute check_sum
-    uint64_t check_sum = 0;
-    for (const auto &record : log_set_) {
-        check_sum += record.tid_;
-    }
 
     // Create log_header
     nlohmann::json json_log = nlohmann::json::object();
     json_log["log_header"] = {
-        {"check_sum", check_sum},
+        {"prev_epoch_hash", 0}, // TODO: prev_log_hashを引数で受け入れる
         {"log_record_num", log_set_.size()}
     };
 
@@ -95,9 +113,26 @@ std::string LogBuffer::create_json_log() {
         json_record["op_type"] = OpType_to_string(record.op_type_);
         json_record["key"] = record.key_;
         json_record["val"] = record.value_;
+        // json_record["debug_current_hash"] = LogBuffer::calculate_hash(record.tid_, OpType_to_string(record.op_type_), record.key_, record.value_);
 
+        if (!json_log_set.empty()) {
+            // If log record exists in buffer, set the hash value of the previous record
+            std::string prev_hash = LogBuffer::calculate_hash(json_log_set.back()["tid"],
+                                                              json_log_set.back()["op_type"],
+                                                              json_log_set.back()["key"],
+                                                              json_log_set.back()["val"]);
+            json_record["prev_hash"] = prev_hash;
+        }
+
+        // Add and update the hash value of the first log record
         json_log_set.push_back(json_record);
+        json_log_set.front()["prev_hash"] = LogBuffer::calculate_hash(json_log_set.back()["tid"],
+                                                                      json_log_set.back()["op_type"],
+                                                                      json_log_set.back()["key"],
+                                                                      json_log_set.back()["val"]);
     }
+
+    // Add log_set to log
     json_log["log_set"] = json_log_set;
 
     return json_log.dump();

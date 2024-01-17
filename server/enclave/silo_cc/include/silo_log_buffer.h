@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <atomic>
 #include <memory>   // for std::align
+#include <openssl/sha.h>    // for SHA256
 
 #include "../../cassa_common/consts.h"
 
@@ -37,6 +38,7 @@ public:
     void pass_nid(NidBuffer &nid_buffer);
     void return_buffer();
     bool empty();
+    std::string calculate_hash(const uint64_t tid, const std::string &op_type, const std::string &key, const std::string &value);
     std::string create_json_log();
     std::string OpType_to_string(OpType op_type);
 

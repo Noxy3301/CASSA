@@ -43,7 +43,7 @@ public:
     std::string create_json_log(std::string &prev_epoch_hash, std::string &current_epoch_hash);
     std::string OpType_to_string(OpType op_type);
 
-    std::string write(PosixWriter &logfile, std::string &prev_epoch_hash);
+    std::string write(size_t thid, PosixWriter &logfile, std::string &prev_epoch_hash);
 
 private:
     std::vector<LogRecord> log_set_;

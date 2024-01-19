@@ -196,7 +196,7 @@ std::string LogBuffer::OpType_to_string(OpType op_type) {
  * @param logfile A reference to the file object where the log records will be written(e.g., PosixWriter).
  * @param prev_epoch_hash The SHA-256 hash of the log set committed in the previous epoch, used to ensure continuity and integrity of the log data across epochs.
 */
-std::string LogBuffer::write(PosixWriter &logfile, std::string &prev_epoch_hash) {
+std::string LogBuffer::write(size_t thid, PosixWriter &logfile, std::string &prev_epoch_hash) {
     if (log_set_size_ == 0) return "";
 
     // create json format of logs
@@ -211,7 +211,8 @@ std::string LogBuffer::write(PosixWriter &logfile, std::string &prev_epoch_hash)
     std::string buffer = size_str + json_log;
 
     // Write the buffer to the log file
-    logfile.write((void*)buffer.data(), buffer.size());
+    logfile.write_log(thid, (void*)buffer.data(), buffer.size());
+    logfile.write_tail_log_hash(thid, (void*)current_epoch_hash.data(), current_epoch_hash.size());
 
     // clear for next transactions
     log_set_size_ = 0;

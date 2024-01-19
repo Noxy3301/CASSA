@@ -39,10 +39,11 @@ public:
     void return_buffer();
     bool empty();
     std::string calculate_hash(const uint64_t tid, const std::string &op_type, const std::string &key, const std::string &value);
-    std::string create_json_log();
+    std::string calculate_hash(const std::string &data);
+    std::string create_json_log(std::string &prev_epoch_hash, std::string &current_epoch_hash);
     std::string OpType_to_string(OpType op_type);
 
-    void write(PosixWriter &logfile, size_t &byte_count);
+    std::string write(PosixWriter &logfile, std::string &prev_epoch_hash);
 
 private:
     std::vector<LogRecord> log_set_;

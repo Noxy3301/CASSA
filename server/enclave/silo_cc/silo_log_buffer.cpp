@@ -98,18 +98,43 @@ std::string LogBuffer::calculate_hash(const uint64_t tid,
     return hex_str;
 }
 
-std::string LogBuffer::create_json_log() {
+std::string LogBuffer::calculate_hash(const std::string &data) {
+    // calculate SHA-256 hash
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int lengthOfHash = 0;
+
+    EVP_MD_CTX* sha256 = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(sha256, EVP_sha256(), NULL);
+    EVP_DigestUpdate(sha256, data.c_str(), data.size());
+    EVP_DigestFinal_ex(sha256, hash, &lengthOfHash);
+    EVP_MD_CTX_free(sha256);
+
+    // convert hash to hex string without using stringstream
+    char buffer[3];
+    std::string hex_str;
+    for (unsigned char i : hash) {
+        snprintf(buffer, sizeof(buffer), "%02x", i);
+        hex_str += buffer;
+    }
+    return hex_str;
+}
+
+std::string LogBuffer::create_json_log(std::string &prev_epoch_hash, std::string &current_epoch_hash) {
     assert(log_set_size_ > 0);
 
     // Create log_header
     nlohmann::json json_log = nlohmann::json::object();
     json_log["log_header"] = {
-        {"prev_epoch_hash", 0}, // TODO: prev_log_hashを引数で受け入れる
+        {"prev_epoch_hash", prev_epoch_hash}, // TODO: prev_log_hashを引数で受け入れる
         {"log_record_num", log_set_.size()}
     };
 
     // Create log_set
     nlohmann::json json_log_set = nlohmann::json::array();
+
+    // combine all hashes of log records in log_set and calculate the hash of the current epoch
+    std::string accumulated_hashes;
+
     for (const auto& record : log_set_) {
         nlohmann::json json_record = nlohmann::json::object();
         json_record["tid"] = record.tid_;
@@ -118,8 +143,15 @@ std::string LogBuffer::create_json_log() {
         json_record["val"] = record.value_;
         // json_record["debug_current_hash"] = LogBuffer::calculate_hash(record.tid_, OpType_to_string(record.op_type_), record.key_, record.value_);
 
+        // Caluculate current hash
+        std::string current_hash = LogBuffer::calculate_hash(record.tid_,
+                                                             OpType_to_string(record.op_type_),
+                                                             record.key_,
+                                                             record.value_);
+        accumulated_hashes += current_hash;
+
+        // If log record exists in buffer, set the hash value of the previous record
         if (!json_log_set.empty()) {
-            // If log record exists in buffer, set the hash value of the previous record
             std::string prev_hash = LogBuffer::calculate_hash(json_log_set.back()["tid"],
                                                               json_log_set.back()["op_type"],
                                                               json_log_set.back()["key"],
@@ -129,14 +161,16 @@ std::string LogBuffer::create_json_log() {
 
         // Add and update the hash value of the first log record
         json_log_set.push_back(json_record);
-        json_log_set.front()["prev_hash"] = LogBuffer::calculate_hash(json_log_set.back()["tid"],
-                                                                      json_log_set.back()["op_type"],
-                                                                      json_log_set.back()["key"],
-                                                                      json_log_set.back()["val"]);
+        json_log_set.front()["prev_hash"] = current_hash;
     }
 
     // Add log_set to log
     json_log["log_set"] = json_log_set;
+
+    current_epoch_hash = LogBuffer::calculate_hash(accumulated_hashes);
+
+    // Add the debug_current_epoch_hash key for debugging purposes (for debug)
+    // json_log["debug_current_epoch_hash"] = current_epoch_hash;
 
     return json_log.dump();
 }
@@ -160,13 +194,14 @@ std::string LogBuffer::OpType_to_string(OpType op_type) {
  * @brief Writes the log records in the buffer to the log file.
  * 
  * @param logfile A reference to the file object where the log records will be written(e.g., PosixWriter).
- * @param byte_count A reference to a size_t variable where the total byte count is accumulated.
+ * @param prev_epoch_hash The SHA-256 hash of the log set committed in the previous epoch, used to ensure continuity and integrity of the log data across epochs.
 */
-void LogBuffer::write(PosixWriter &logfile, size_t &byte_count) {
-    if (log_set_size_ == 0) return;
+std::string LogBuffer::write(PosixWriter &logfile, std::string &prev_epoch_hash) {
+    if (log_set_size_ == 0) return "";
 
     // create json format of logs
-    std::string json_log = create_json_log();
+    std::string current_epoch_hash;
+    std::string json_log = create_json_log(prev_epoch_hash, current_epoch_hash);
     
     // Prepare the buffer to include the size of the data for recovery
     uint32_t log_size = static_cast<uint32_t>(json_log.size());
@@ -181,6 +216,8 @@ void LogBuffer::write(PosixWriter &logfile, size_t &byte_count) {
     // clear for next transactions
     log_set_size_ = 0;
     log_set_.clear();
+
+    return current_epoch_hash;
 }
 
 /**

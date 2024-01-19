@@ -55,7 +55,9 @@ void Logger::logging(bool quit) {
         if (log_buffer->max_epoch_ > max_epoch) {
             max_epoch = log_buffer->max_epoch_;
         }
-        log_buffer->write(logfile_, byte_count_);
+        // perform logging and update prev_epoch_hash_
+        prev_epoch_hash_ = log_buffer->write(logfile_, prev_epoch_hash_);
+
         log_buffer->pass_nid(nid_buffer_);
         log_buffer->return_buffer();
     }

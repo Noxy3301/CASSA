@@ -34,7 +34,7 @@ include ./sgxenv.mk
 
 .PHONY: all PREPARE_SGX_SSL build clean run
 
-all: build make_log
+all: build
 
 # make sgxssl lib beforehand
 PREPARE_SGXSSL := ./prepare_sgxssl.sh
@@ -58,11 +58,6 @@ build-server: $(SGXSSL_HEADER_CHECK)
 
 build-client: $(SGXSSL_HEADER_CHECK)
 	$(MAKE) -C client
-
-make_log:
-	mkdir -p log
-	touch log/pepoch.seal
-	touch log/log0.seal
 
 clean:
 	$(MAKE) -C server clean

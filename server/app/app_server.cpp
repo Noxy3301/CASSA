@@ -38,6 +38,9 @@
 #include <vector>
 #include <thread>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include "util/logger_affinity.hpp"
 
 #define LOOP_OPTION "-server-in-loop"
@@ -106,7 +109,7 @@ int ocall_save_pepochfile(const uint8_t* sealed_data, const size_t sealed_size) 
     std::fstream file("log/pepoch.seal",
                       std::ios::in | std::ios::out | std::ios::binary);
     if (!file) {
-        printf("Host: pepoch.seal not found. Creating new file...\n");
+        printf("Host: pepoch.seal not found.\n");
         return -1;
     }
     
@@ -179,6 +182,44 @@ void terminate_enclave() {
     printf("Host: Enclave successfully terminated.\n");
 }
 
+bool is_directory_exist(const std::string& path) {
+    struct stat info;
+
+    // Check if the path exists using the stat function
+    if (stat(path.c_str(), &info) != 0) {
+        // Path does not exist or an error occurred
+        return false;
+    }
+
+    // Return true if the path is a directory
+    return (info.st_mode & S_IFDIR) != 0;
+}
+
+bool create_file(const std::string &filename) {
+    std::ofstream file(filename);
+    if (!file) {
+        printf("Error: Unable to create file %s\n", filename.c_str());
+        return false;
+    }
+    return true;
+}
+
+void create_log_files(size_t number_of_log_files) {
+    std::string dir_name = "log";
+
+    // make directory
+    if (mkdir(dir_name.c_str(), 0777) == -1) {
+        printf("Error: Unable to create directory %s\n", dir_name.c_str());
+        return;
+    }
+
+    // make pepoch file and log files
+    create_file(dir_name + "/pepoch.seal");
+    for (size_t i = 0; i < number_of_log_files; i++) {
+        create_file(dir_name + "/log" + std::to_string(i) + ".seal");
+    }
+}
+
 int main(int argc, const char* argv[]) {
     sgx_status_t result = SGX_SUCCESS;
     int ret = 1;
@@ -233,6 +274,17 @@ int main(int argc, const char* argv[]) {
     if (result != SGX_SUCCESS) {
         printf("- [Host] Status: Failed\n");
         goto exit;
+    }
+
+    if (is_directory_exist("log") == false) {
+        // If the log directory does not exist, create the directory and the file
+        printf("- [Host] Log directory does not exist, creating new directory...\n");
+        create_log_files(logger_num);
+    } else {
+        // // If the log file exists, perform recovery
+        // printf("- [Host] Log directory exists, performing recovery...\n");
+        // // TODO: uint64_tのDurable Epochを取得して、Glocal Epochとしてセットする
+        // ecall_perform_recovery(server_global_eid);
     }
 
     printf("- [Host] Initialize CASSA settings\n");

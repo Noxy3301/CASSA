@@ -188,7 +188,6 @@ void Logger::worker_end(int thid) {
  * @details Closes the log file, sets the joined flag, and notifies any waiting threads.
  */
 void Logger::logger_end() {
-    logfile_.close();
     std::lock_guard<std::mutex> lock(mutex_);
     joined_ = true;
     cv_finish_.notify_all();

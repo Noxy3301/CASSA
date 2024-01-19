@@ -32,7 +32,8 @@
 // ocall for untrusted functions 
 enclave {
     untrusted {
-        int ocall_save_logfile([in, size=sealed_size]const uint8_t* sealed_data, size_t sealed_size);
+        int ocall_save_logfile(size_t thid, [in, size=sealed_size]const uint8_t* sealed_data, size_t sealed_size);
         int ocall_save_pepochfile([in, size=sealed_size]const uint8_t* sealed_data, size_t sealed_size);
+        int ocall_save_tail_log_hash(size_t thid, [in, size=sealed_size]const uint8_t* sealed_data, size_t sealed_size);
     };
 };

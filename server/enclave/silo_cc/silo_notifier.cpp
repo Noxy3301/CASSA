@@ -16,30 +16,6 @@
 #include "../cassa_common/json_message_formats.hpp" // for create_message
 
 /**
- * @brief Opens and maps a file to memory.
- * 
- * @note O_CREAT is used to create a new file if it does not exist. O_TRUNC is used to truncate the file to zero length
- */
-void PepochFile::open() {
-    // fd_ = ::open(file_name_.c_str(), O_CREAT|O_TRUNC|O_RDWR, 0644);
-    // if (fd_ == -1) {    // fd_は失敗したら-1になる(初期値も-1だけど何かしらの要因で事故ったらここに落ち着く)
-    //     std::cerr << "open failed: " << file_name_ << std::endl;
-    //     printf("ERR!");    //TODO: ERRの対処
-    // }
-    // std::uint64_t zero = 0;
-    // auto sz = ::write(fd_, &zero, sizeof(std::uint64_t));
-    // if (sz == -1) {
-    //     std::cerr << "write failed";
-    //     printf("ERR!");    //TODO: ERRの対処
-    // }
-    // addr_ = (std::uint64_t*)::mmap(NULL, sizeof(std::uint64_t), PROT_WRITE, MAP_SHARED, fd_, 0);
-    // if (addr_ == MAP_FAILED) {
-    //     std::cerr << "mmap failed";
-    //     printf("ERR!");    //TODO: ERRの対処
-    // }
-}
-
-/**
  * @brief Writes the (durable) epoch to the file.
  * 
  * @param epoch The epoch to write.
@@ -63,17 +39,6 @@ void PepochFile::write(std::uint64_t epoch) {
     // if (ocall_ret != 0) printf("ERR! ocall_ret != 0\n");
     // if (ocall_status != SGX_SUCCESS) printf("ERR! ocall_status != SGX_SUCCESS\n");
 }
-
-/**
- * @brief Closes the file which stores the (durable) epoch.
- */
-void PepochFile::close() {
-    // ::munmap(addr_, sizeof(std::uint64_t));
-    // ::close(fd_);
-    // fd_ = -1;
-}
-
-
 
 void NidBuffer::store(std::vector<NotificationId> &nid_buffer, std::uint64_t epoch) {
   NidBufferItem *itr = front_;

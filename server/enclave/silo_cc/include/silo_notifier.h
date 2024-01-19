@@ -14,9 +14,7 @@
 
 class PepochFile {  // A:siloRでpepochを書き出しているのでそれに則っているらしい
 public:
-    void open();
     void write(uint64_t epoch);
-    void close();
     ~PepochFile() { if (fd_ != -1) close(); }
 
 private:

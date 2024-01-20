@@ -91,11 +91,56 @@ void print_error_message(sgx_status_t ret) {
         printf("Error code is 0x%X. Please refer to the \"Intel SGX SDK Developer Reference\" for more details.\n", ret);
 }
 
+int ocall_read_file(const uint8_t *filename, size_t filename_size, uint8_t *data, size_t offset, size_t data_size) {
+    // Convert filename from uint8_t* to std::string and open file as binary
+    std::string filename_str(reinterpret_cast<const char*>(filename), filename_size);
+    std::ifstream file(filename_str, std::ios::in | std::ios::binary);
+    if (!file) {
+        printf("Host: Unable to open file: %s\n", filename_str.c_str());
+        return -1;  // Open failed
+    }
+
+    // Seek to the specified position
+    file.seekg(offset, std::ios::beg);
+    if (!file) {
+        printf("Host: Error seeking to position %zu in file: %s\n", offset, filename_str.c_str());
+        return -2; // Seek failed
+    }
+
+    // Read data from file
+    file.read(reinterpret_cast<char*>(data), data_size);
+    if (!file) {
+        printf("Host: Error reading data from file: %s\n", filename_str.c_str());
+        return -3; // Read failed
+    }
+
+    // Success
+    file.close();
+    return 0;
+}
+
+size_t ocall_get_file_size(const uint8_t *filename, size_t filename_size) {
+    // Convert filename from uint8_t* to std::string
+    std::string file_name_str(reinterpret_cast<const char*>(filename), filename_size);
+
+    // Open file and get file size
+    std::ifstream file(file_name_str, std::ifstream::ate | std::ifstream::binary);
+    if (!file.is_open()) {
+        printf("Host: Unable to open file: %s\n", file_name_str.c_str());
+        return 0;
+    }
+
+    return static_cast<size_t>(file.tellg());
+}
+
 int ocall_save_logfile(size_t thid, const uint8_t* sealed_data, const size_t sealed_size) {
     // open file
     std::fstream file("log/log" + std::to_string(thid) + ".seal",
                       std::ios::in | std::ios::out | std::ios::binary | std::ios::app);
-    if (!file) return -1;
+    if (!file) {
+        printf("Host: Unable to open file: log/log%zu.seal\n", thid);
+        return -1;
+    }
 
     // append log
     file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
@@ -109,10 +154,9 @@ int ocall_save_pepochfile(const uint8_t* sealed_data, const size_t sealed_size) 
     std::fstream file("log/pepoch.seal",
                       std::ios::in | std::ios::out | std::ios::binary);
     if (!file) {
-        printf("Host: pepoch.seal not found.\n");
+        printf("Host: Unable to open file: log/pepoch.seal\n");
         return -1;
     }
-    
 
     // Write durable epoch at the beginning of the file
     file.seekp(0);
@@ -125,8 +169,10 @@ int ocall_save_tail_log_hash(size_t thid, const uint8_t* sealed_data, const size
     // open file
     std::fstream file("log/pepoch.seal",
                       std::ios::in | std::ios::out | std::ios::binary);
-    if (!file) return -1;
-
+    if (!file) {
+        printf("Host: Unable to open file: log/pepoch.seal\n");
+        return -1;
+    }
     // Seek to the corresponding position and write tail log hash
     file.seekp(sizeof(uint64_t) + thid * 32);
     file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
@@ -213,7 +259,7 @@ void create_log_files(size_t number_of_log_files) {
         return;
     }
 
-    // make pepoch file and log files
+    // make epoch file and log files
     create_file(dir_name + "/pepoch.seal");
     for (size_t i = 0; i < number_of_log_files; i++) {
         create_file(dir_name + "/log" + std::to_string(i) + ".seal");
@@ -281,11 +327,13 @@ int main(int argc, const char* argv[]) {
         printf("- [Host] Log directory does not exist, creating new directory...\n");
         create_log_files(logger_num);
     } else {
-        // // If the log file exists, perform recovery
-        // printf("- [Host] Log directory exists, performing recovery...\n");
-        // // TODO: uint64_tのDurable Epochを取得して、Glocal Epochとしてセットする
-        // ecall_perform_recovery(server_global_eid);
+        // If the log file exists, perform recovery
+        printf("- [Host] Log directory exists, performing recovery...\n");
+        // TODO: uint64_tのDurable Epochを取得して、Glocal Epochとしてセットする
+        ecall_perform_recovery(server_global_eid);
     }
+
+    return 0;   // debugのため、ここで終了
 
     printf("- [Host] Initialize CASSA settings\n");
     ecall_initialize_global_variables(server_global_eid, worker_num, logger_num);

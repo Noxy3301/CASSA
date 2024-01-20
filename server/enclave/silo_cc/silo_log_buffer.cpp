@@ -204,8 +204,8 @@ std::string LogBuffer::write(size_t thid, PosixWriter &logfile, std::string &pre
     std::string json_log = create_json_log(prev_epoch_hash, current_epoch_hash);
     
     // Prepare the buffer to include the size of the data for recovery
-    uint32_t log_size = static_cast<uint32_t>(json_log.size());
-    std::string size_str(reinterpret_cast<char*>(&log_size), sizeof(uint32_t));
+    size_t log_size = static_cast<size_t>(json_log.size());
+    std::string size_str(reinterpret_cast<char*>(&log_size), sizeof(size_t));
 
     // Concatenate the size string with the log data
     std::string buffer = size_str + json_log;

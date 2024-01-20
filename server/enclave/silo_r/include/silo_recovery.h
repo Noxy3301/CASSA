@@ -5,9 +5,11 @@
 #include <cassert>
 #include <string>
 #include <vector>
+#include <openssl/evp.h>   // For OpenSSL 3.0 compatible cryptographic interfaces
 #include <openssl/sha.h>   // For SHA-256 specific constants (SHA256_DIGEST_LENGTH)
 
 #include "../../cassa_common/db_tid.h"
+#include "../../../../common/ansi_color_code.h"
 
 #define SHA256_HEXSTR_LEN (SHA256_DIGEST_LENGTH * 2)
 
@@ -47,12 +49,15 @@ public:
     bool is_finished_ = false;
 
     // 
-    uint32_t current_epoch_;
+    std::string prev_epoch_hash_ = "";
     std::vector<LogBufferWithHash> log_buffer_with_hashes_;
 
     std::string tail_log_hash_;
 
     void remove_log_buffers_of_epoch(uint32_t epoch);
+
+    int validate_log_buffers(std::vector<LogRecordWithHash> &combined_log_sets, uint32_t current_epoch);
+    bool validate_log_buffer(const LogBufferWithHash& buffer);
 
     std::string read_next_log_record();
     LogBufferWithHash parse_log_set(const std::string& json_string);
@@ -60,10 +65,12 @@ public:
 
 class RecoveryExecutor {
 public:
-    uint64_t current_epoch_ = 0;    // TODO: 本当はuint32_t
+    uint64_t current_epoch_ = 0;    // TODO: 本当はuint32_t, っていうかこれいらない？
     uint64_t durable_epoch_;
 
     std::vector<LogData> log_data_;
+
+    std::vector<LogRecordWithHash> combined_log_sets;
 
     RecoveryExecutor() {}
 
@@ -73,6 +80,8 @@ public:
     // utility
     size_t get_file_size(std::string file_name);
     static std::string read_file(std::string file_name, size_t offset, size_t size);
+    static std::string calculate_log_hash(const LogRecordWithHash &log);
+    static std::string calculate_log_hash(const std::string &data);
 
     // pepoch.seal
     uint64_t read_durable_epoch(const std::string file_name);

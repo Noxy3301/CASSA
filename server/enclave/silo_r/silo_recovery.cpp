@@ -3,6 +3,7 @@
 #include "../cassa_server_t.h" // for ocall
 #include "../../../common/common.h" // for t_print()
 #include "../../../common/third_party/json.hpp" // for nlohmann::json
+#include "../cassa_server.h"
 
 void RecoveryExecutor::perform_recovery() {
     /**
@@ -64,15 +65,16 @@ void RecoveryExecutor::perform_recovery() {
 
     // Iterate over each epoch until the current epoch is less than or equal to the durable epoch
     while (this->current_epoch_ <= this->durable_epoch_) {
+        this->combined_log_sets.clear();
         t_print("current_epoch_: %lu, durable_epoch_: %lu\n", this->current_epoch_, this->durable_epoch_);
         for (auto &log_data : this->log_data_) {
             while (!log_data.is_finished_) {
                 // Check if the first log record's epoch is greater than the current epoch
-                // t_print(DEBUG "log_data.log_buffers_.size(): %lu\n", log_data.log_buffers_.size());
+                t_print(DEBUG "log_data.log_buffers_.size(): %lu\n", log_data.log_buffer_with_hashes_.size());
                 if (log_data.log_buffer_with_hashes_.size() > 0) {
-                    t_print(DEBUG "log_data.log_buffers_.front().log_records_.front().get_epoch_from_tid(): %u\n", log_data.log_buffer_with_hashes_.front().log_records_.front().get_epoch_from_tid());
+                    // t_print(DEBUG "log_data.log_buffers_.front().log_records_.front().get_epoch_from_tid(): %u\n", log_data.log_buffer_with_hashes_.front().log_records_.front().get_epoch_from_tid());
                     if (log_data.log_buffer_with_hashes_.front().log_records_.front().get_epoch_from_tid() > this->current_epoch_) {
-                        t_print(DEBUG "log_data.log_buffers_.front().log_records_.front().get_epoch_from_tid(): %u, skipped\n", log_data.log_buffer_with_hashes_.front().log_records_.front().get_epoch_from_tid());
+                        // t_print(DEBUG "log_data.log_buffers_.front().log_records_.front().get_epoch_from_tid(): %u, skipped\n", log_data.log_buffer_with_hashes_.front().log_records_.front().get_epoch_from_tid());
                         break;
                     }
                 }
@@ -104,36 +106,51 @@ void RecoveryExecutor::perform_recovery() {
         // ここまでくるとcurrent_epochより前のlog_setはすでにlog_data_.log_buffers_に格納されている
         // または、current_epochより大きいlog_setがlog_data_.log_buffers_に格納されている
 
-        // validation
-
-        for (auto &log_data : this->log_data_) {    // 各log.sealに対して
-            for (auto &log_buffer : log_data.log_buffer_with_hashes_) {   // 各log_set(JSONだったやつ)に対して
-                if (log_buffer.epoch_ == this->current_epoch_) {
-                    // 7. Validate epoch level hash
-                    //     a. If it's the first log data, verify that `prev_epoch` matches the hash of the `credential_data`
-                    //     b. if it's the last log data, Verify that the log data's hash matches the `tail_log_hash`
-                    //     c. For intermediate log data, ensure `prev_epoch` matches the hash of the immediately preceding log entry
-
-
-                    // delete log_buffer from log_data_.log_buffers_
-                } else {
-                    break;
-                }
+        // std::vector<LogRecordWithHash> combined_log_sets;
+        for (auto &log_data : this->log_data_) {
+            // validation
+            if (log_data.validate_log_buffers(this->combined_log_sets, this->current_epoch_) == 0) {
+                // combine log_set
+                // for (auto &log_set : log_data.log_buffer_with_hashes_) {
+                //     combined_log_sets.insert(combined_log_sets.end(), log_set.log_records_.begin(), log_set.log_records_.end());
+                // }
             }
         }
 
-        // combine log_set
-
         // sort as tid
+        std::sort(this->combined_log_sets.begin(), this->combined_log_sets.end(), [](const LogRecordWithHash &a, const LogRecordWithHash &b) {
+            return a.tid_ < b.tid_;
+        });
 
         // replay log
+        GarbageCollector gc;    // TODO: これどうしよう
+        for (auto &log_record : this->combined_log_sets) {
+            if (log_record.op_type_ == "INSERT") {
+                Key key(log_record.key_);
+                Value *value = new Value(log_record.value_);
+                masstree.insert_value(key, value, gc);
+                t_print("INSERT: %s, %s\n", log_record.key_.c_str(), log_record.value_.c_str());
+            } else if (log_record.op_type_ == "WRITE") {
+                Key key(log_record.key_);
+                Value *found_value = masstree.get_value(key);
+                found_value->body_ = log_record.value_;
+                t_print("WRITE: %s, %s\n", log_record.key_.c_str(), log_record.value_.c_str());
+            } else {
+                t_print("Unknown op_type: %s\n", log_record.op_type_.c_str());
+            }
+        }
 
         // Increment current_epoch for the next iteration
-        for (auto &log_data : this->log_data_) {
-            log_data.remove_log_buffers_of_epoch(current_epoch_);
-        }
+        // for (auto &log_data : this->log_data_) {
+        //     log_data.remove_log_buffers_of_epoch(current_epoch_);
+        // }
+
         this->current_epoch_++;
     }
+
+    GlobalEpoch = this->durable_epoch_;
+    t_print("GlobalEpoch: %lu\n", GlobalEpoch);
+
     //     // 7. Validate epoch level hash
     //     for (auto &log_data : this->log_data_) {
     //         for (auto &log_set : log_data.log_buffers_) {
@@ -178,6 +195,51 @@ std::string RecoveryExecutor::read_file(std::string file_name, size_t offset, si
     return file_data;
 }
 
+std::string RecoveryExecutor::calculate_log_hash(const LogRecordWithHash &log) {
+    // combine all fields into a single string (except prev_hash)
+    std::string data = std::to_string(log.tid_) + log.op_type_ + log.key_ + log.value_;
+
+    // calculate SHA-256 hash
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    unsigned int lengthOfHash = 0;
+
+    EVP_MD_CTX* sha256 = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(sha256, EVP_sha256(), NULL);
+    EVP_DigestUpdate(sha256, data.c_str(), data.size());
+    EVP_DigestFinal_ex(sha256, hash, &lengthOfHash);
+    EVP_MD_CTX_free(sha256);
+
+    // convert hash to hex string without using stringstream
+    char buffer[3]; // 2 characters + null terminator for each byte
+    std::string hex_str;
+    for (unsigned char i : hash) {
+        snprintf(buffer, sizeof(buffer), "%02x", i);
+        hex_str += buffer;
+    }
+    return hex_str;
+}
+
+std::string RecoveryExecutor::calculate_log_hash(const std::string &data) {
+    // calculate SHA-256 hash
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    unsigned int lengthOfHash = 0;
+
+    EVP_MD_CTX* sha256 = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(sha256, EVP_sha256(), NULL);
+    EVP_DigestUpdate(sha256, data.c_str(), data.size());
+    EVP_DigestFinal_ex(sha256, hash, &lengthOfHash);
+    EVP_MD_CTX_free(sha256);
+
+    // convert hash to hex string without using stringstream
+    char buffer[3];
+    std::string hex_str;
+    for (unsigned char i : hash) {
+        snprintf(buffer, sizeof(buffer), "%02x", i);
+        hex_str += buffer;
+    }
+    return hex_str;
+}
+
 uint64_t RecoveryExecutor::read_durable_epoch(const std::string file_name) {
     const size_t size = sizeof(uint64_t);
     std::string file_data = read_file(file_name, 0, size);
@@ -200,6 +262,93 @@ void LogData::remove_log_buffers_of_epoch(uint32_t epoch) {
     log_buffer_with_hashes_.erase(it, log_buffer_with_hashes_.end());
 }
 
+int LogData::validate_log_buffers(std::vector<LogRecordWithHash> &combined_log_sets, uint32_t current_epoch) {
+    for (auto it = log_buffer_with_hashes_.begin(); it != log_buffer_with_hashes_.end(); ) {
+        // t_print("it->epoch_: %u, current_epoch_: %u\n", it->epoch_, current_epoch);
+        if (it->epoch_ == current_epoch) {
+            // Epoch levelのバリデーションを行う
+            // this->prev_epoch_hash_と比較する
+            if (it->prev_epoch_hash_ == "") {
+                // 1つ目のlog_bufferの場合、this->prev_epoch_hash_はcredential_dataのhashと一致するはず
+                // TODO: credential_dataのhashを取得する(あとで)
+                t_print(DEBUG "it->prev_epoch_hash_ is empty\n");
+            } else if (this->prev_epoch_hash_ != it->prev_epoch_hash_) {
+                // バリデーションに失敗した場合、エラーを報告するなどの処理をここに追加
+                t_print(DEBUG BRED"Validation failed for epoch %u\n" CRESET, it->epoch_);
+                return -1;
+            } else {
+                t_print(DEBUG BGRN "Validation succeeded for epoch %u\n" CRESET, it->epoch_);
+            }
+
+            // current_epoch_hashを計算する
+            std::string accmulated_data;
+            for (const auto& log_record : it->log_records_) {
+                t_print(DEBUG "log_record.tid_: %lu\n", log_record.tid_);
+                t_print(DEBUG "log_record.op_type_: %s\n", log_record.op_type_.c_str());
+                t_print(DEBUG "log_record.key_: %s\n", log_record.key_.c_str());
+                t_print(DEBUG "log_record.value_: %s\n", log_record.value_.c_str());
+                std::string current_hash = RecoveryExecutor::calculate_log_hash(log_record);
+                t_print(DEBUG "current_hash: %s\n", current_hash.c_str());
+                accmulated_data += current_hash;
+            }
+            t_print("accmulated_data: %s\n", accmulated_data.c_str());
+            std::string current_epoch_hash = RecoveryExecutor::calculate_log_hash(accmulated_data);
+            // this->prev_epoch_hash_としてcurrent_epoch_hashをセットする
+
+            this->prev_epoch_hash_ = current_epoch_hash;
+            t_print(DEBUG "set this->prev_epoch_hash_ to %s\n", this->prev_epoch_hash_.c_str());
+
+            // ログバッファのバリデーションを行う
+            if (!validate_log_buffer(*it)) {
+                // バリデーションに失敗した場合、エラーを報告するなどの処理をここに追加
+                t_print("Validation failed for log buffer of epoch %u\n", it->epoch_);
+                return -2;
+            } else {
+                t_print(DEBUG BGRN "Validation succeeded for log buffer of epoch %u\n" CRESET, it->epoch_);
+            }
+            // バリデーションが完了したら、バッファを削除
+            for (auto &log_set : log_buffer_with_hashes_) {
+                combined_log_sets.insert(combined_log_sets.end(), log_set.log_records_.begin(), log_set.log_records_.end());
+            }
+            it = log_buffer_with_hashes_.erase(it);
+        } else {
+            it++;
+        }
+    }
+    
+    return 0;
+}
+
+// LogBufferWithHashオブジェクトをバリデーションするメソッド
+bool LogData::validate_log_buffer(const LogBufferWithHash &buffer) {
+    t_print(DEBUG "Validating log buffer of epoch %u, buffer.log_records_.size(): %lu\n", buffer.epoch_, buffer.log_records_.size());
+    // If there is only one log in the set, prev_hash will be its own hash
+    if (buffer.log_records_.size() == 1) {
+        return buffer.log_records_.front().prev_hash_ == RecoveryExecutor::calculate_log_hash(buffer.log_records_.front());
+    }
+
+    // Variable to hold the hash of the previous record (for the first log, it's the hash of the last log)
+    std::string prev_hash = RecoveryExecutor::calculate_log_hash(buffer.log_records_.back());
+
+    for (size_t i = 0; i < buffer.log_records_.size(); i++) {
+        const auto &log_record = buffer.log_records_[i];
+        t_print(DEBUG "Validating log record %lu\n", i);
+        t_print(DEBUG "TID = %lu, Prev Hash = %s\n", log_record.tid_, log_record.prev_hash_.c_str());
+
+        // Check if the current log record's prev_hash matches the hash of the previous log record
+        // If hashes do not match, the log might have been tampered with
+        if (log_record.prev_hash_ != prev_hash) {
+            t_print(DEBUG BRED "Hash mismatch detected at log record %lu\n" CRESET, i);
+            return false;
+        }
+
+        // Calculate the hash of the current record with SHA-256 and save for the next loop's comparison
+        prev_hash = RecoveryExecutor::calculate_log_hash(log_record);
+        t_print(DEBUG "Calculated hash for log record %lu: %s\n", i, prev_hash.c_str());
+
+        return true;
+    }
+}
 
 std::string LogData::read_next_log_record() {
     // 1. Read size of log record (first 8 bytes)

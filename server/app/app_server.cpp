@@ -333,8 +333,6 @@ int main(int argc, const char* argv[]) {
         ecall_perform_recovery(server_global_eid);
     }
 
-    return 0;   // debugのため、ここで終了
-
     printf("- [Host] Initialize CASSA settings\n");
     ecall_initialize_global_variables(server_global_eid, worker_num, logger_num);
 

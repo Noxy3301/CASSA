@@ -1,6 +1,8 @@
 #include "include/silo_log_buffer.h"
 #include "../../../common/third_party/json.hpp"
 
+#include "../../../common/common.h" // for t_print()
+
 /**
  * @brief Adds a set of write records to the log buffer and updates epoch tracking.
  * 
@@ -149,6 +151,7 @@ std::string LogBuffer::create_json_log(std::string &prev_epoch_hash, std::string
                                                              record.key_,
                                                              record.value_);
         accumulated_hashes += current_hash;
+        t_print("accumulated_hashes: %s\n", accumulated_hashes.c_str());
 
         // If log record exists in buffer, set the hash value of the previous record
         if (!json_log_set.empty()) {

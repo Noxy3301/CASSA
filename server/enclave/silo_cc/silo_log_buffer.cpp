@@ -79,7 +79,7 @@ std::string LogBuffer::calculate_hash(const uint64_t tid,
     std::string data = std::to_string(tid) + op_type + key + value;
 
     // calculate SHA-256 hash
-    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned char hash[SHA256_DIGEST_LENGTH];
     unsigned int lengthOfHash = 0;
 
     EVP_MD_CTX* sha256 = EVP_MD_CTX_new();
@@ -100,7 +100,7 @@ std::string LogBuffer::calculate_hash(const uint64_t tid,
 
 std::string LogBuffer::calculate_hash(const std::string &data) {
     // calculate SHA-256 hash
-    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned char hash[SHA256_DIGEST_LENGTH];
     unsigned int lengthOfHash = 0;
 
     EVP_MD_CTX* sha256 = EVP_MD_CTX_new();

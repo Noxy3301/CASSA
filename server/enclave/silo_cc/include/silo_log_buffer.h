@@ -5,7 +5,8 @@
 #include <cstdint>
 #include <atomic>
 #include <memory>   // for std::align
-#include <openssl/evp.h>    // for SHA256
+#include <openssl/evp.h>    // For OpenSSL 3.0 compatible cryptographic interfaces
+#include <openssl/sha.h>    // For SHA-256 specific constants like SHA256_DIGEST_LENGTH
 
 #include "../../cassa_common/consts.h"
 

@@ -43,7 +43,7 @@
 #include "silo_cc/include/silo_util.h"
 
 // CASSA/Silo_Recovery
-#include "silo_r/include/silo_recovery.h"
+#include "silo_r/include/silor.h"
 
 // CASSA/Masstree
 #include "masstree/include/masstree.h"
@@ -82,8 +82,8 @@ SSLSessionHandler ssl_session_handler;
 TransactionBalancer tx_balancer;
 
 void ecall_perform_recovery() {
-    RecoveryExecutor recovery_executor;
-    recovery_executor.perform_recovery();
+    RecoveryManager recovery_manager;
+    recovery_manager.execute_recovery();
 }
 
 void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {

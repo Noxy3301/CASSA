@@ -24,7 +24,7 @@ public:
     std::vector<RecoveryLogRecord> current_epoch_log_records_;
 
     // recovery function
-    void execute_recovery();
+    int execute_recovery();
 
     // pepoch.seal
     uint64_t read_durable_epoch(std::string file_name);

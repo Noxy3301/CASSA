@@ -81,9 +81,11 @@ size_t num_logger_threads;
 SSLSessionHandler ssl_session_handler;
 TransactionBalancer tx_balancer;
 
-void ecall_perform_recovery() {
+int ecall_perform_recovery() {
     RecoveryManager recovery_manager;
-    recovery_manager.execute_recovery();
+    int recovery_status = recovery_manager.execute_recovery();
+
+    return recovery_status;
 }
 
 void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {

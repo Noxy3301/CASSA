@@ -285,8 +285,7 @@ int main(int argc, const char* argv[]) {
     size_t w_thid = 0;  // Workerのthread ID
     size_t l_thid = 0;  // Loggerのthread ID, Workerのgroup IDとしても機能する
 
-    // ssl_connection_acceptor
-    // ssl_session_monitor
+    int ocall_ret;
 
     /* Check argument count */
     if (argc == 4) {
@@ -329,8 +328,11 @@ int main(int argc, const char* argv[]) {
     } else {
         // If the log file exists, perform recovery
         printf("- [Host] Log directory exists, performing recovery...\n");
-        // TODO: uint64_tのDurable Epochを取得して、Glocal Epochとしてセットする
-        ecall_perform_recovery(server_global_eid);
+        ecall_perform_recovery(server_global_eid, &ocall_ret);
+        if (result != SGX_SUCCESS || ocall_ret != 0) {
+            printf("- [Host] Recovery failed\n");
+            goto exit;
+        }
     }
 
     printf("- [Host] Initialize CASSA settings\n");

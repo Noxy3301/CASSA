@@ -2,25 +2,27 @@
 
 void RecoveryManager::execute_recovery() {
     /**
-     * OVERVIEW:
-     * 1. Reading the size of the durable epoch file (EPOCH_FILE_PATH).
-     * 2. Reading the durable epoch from the durable epoch file.
-     * 3. Reading each last log hash from the durable epoch file and creating log archives.
-     * 4. Reading log records from each log archive based on the current epoch.
-     * 5. Validating log records for each epoch and handling any validation failures.
-     * 6. Sorting log records by transaction id and replaying them for state reconstruction.
-     * 7. Updating the global epoch to the durable epoch after successful recovery.
-    */
+     * Executes the recovery process by performing the following steps:
+     * 1. Reads the durable epoch from EPOCH_FILE_PATH (pepoch.seal) which indicates the last consistent state of the database.
+     * 2. Reads the hashes of the last log records from the durable epoch file. These hashes are stored as 64-byte hexadecimal strings.
+     * 3. Determines the size of each log file and reads log records for the current epoch. Log records are decrypted and deserialized into RecoveryLogSet structures.
+     * 4. Verifies log-level integrity by checking if the prev_hash in each log record correctly points to the previous log record's hash.
+     * 5. Performs epoch-level integrity verification to ensure all log records form a unidirectional hash chain, cyclically linked to credential data and the last hash value in pepoch.seal.
+     * 6. Sorts logs by their transaction ID (tid) and replays them to reconstruct the database state.
+     * 7. Repeats the process for each epoch until the durable epoch is reached.
+     *
+     * On successful completion, the global epoch is set to the durable epoch, signifying the end of recovery.
+     */
 
-    // Step 1: Read the size of the durable epoch file
+    // Read the size of the durable epoch file
     size_t epoch_file_size = get_file_size(EPOCH_FILE_PATH);
     t_print(DEBUG EPOCH_FILE_PATH ": size: %lu\n", epoch_file_size);
 
-    // Step 2: Read the durable epoch from the file
+    // Read the durable epoch which indicates the last consistent state of the database
     this->durable_epoch_ = read_durable_epoch(EPOCH_FILE_PATH);
     t_print(DEBUG EPOCH_FILE_PATH ": durable epoch: %lu\n", this->durable_epoch_);
 
-    // Step 3: Read each last log hash from the durable epoch file
+    // Read the hashes of the last log records from the durable epoch file
     for (size_t i = 0; i < (epoch_file_size - sizeof(uint64_t)) / SHA256_HEXSTR_LEN; i++) {
         std::string last_log_hash = read_file(EPOCH_FILE_PATH, sizeof(uint64_t) + i * SHA256_HEXSTR_LEN, SHA256_HEXSTR_LEN);
         t_print(DEBUG "last_log_hash[%lu]: %s\n", i, last_log_hash.c_str());
@@ -32,23 +34,24 @@ void RecoveryManager::execute_recovery() {
         this->log_archives_.push_back(log_archive);
     }
 
-    // Step 4: Read and process the log records for each epoch
+    // Determine the size of each log file and read log records for the current epoch
     for (auto &log_archive : this->log_archives_) {
         size_t log_file_size = get_file_size(log_archive.log_file_name_);
         log_archive.log_file_size_ = log_file_size;
     }
 
+    // Iterate through each epoch and process the corresponding log records
     while (this->current_epoch_ <= this->durable_epoch_) {
         this->current_epoch_log_records_.clear();
 
-        // Printing recovery progress
+        // Print recovery progress percentage
         double progress = (this->current_epoch_ == 0) ? 0.0 : static_cast<double>(this->current_epoch_) / this->durable_epoch_ * 100.0;
         if (progress != this->recovery_progress_) {
             this->recovery_progress_ = progress;
             t_print("Recovery progress: %.2f%%\r", this->recovery_progress_);
         }
 
-        // Reading log records from each log archive
+        // Read log records from each log archive and deserialize them
         for (auto &log_archive : this->log_archives_) {
             
             while (true) {
@@ -75,17 +78,17 @@ void RecoveryManager::execute_recovery() {
             }
         }
 
-        // Step 5: Validating log records for the current epoch
+        // Validate log records for the current epoch and sort by tid
         for (auto &log_archive : this->log_archives_) {
             if (log_archive.verify_epoch_level_integrity(this->current_epoch_log_records_, this->current_epoch_) != 0) return;
         }
 
-        // Step 6: Sorting log records by transaction id
+        // Sorting log records by tid
         std::sort(this->current_epoch_log_records_.begin(), this->current_epoch_log_records_.end(), [](const RecoveryLogRecord &a, const RecoveryLogRecord &b) {
             return a.tid_ < b.tid_;
         });
 
-        // Step 7: Replay the log records for the current epoch
+        // Replay log records for the current epoch to reconstruct the database state
         GarbageCollector gc;    // Placeholder for garbage collection
         for (auto &log_record : this->current_epoch_log_records_) {
             this->processed_operation_num_++;
@@ -103,10 +106,11 @@ void RecoveryManager::execute_recovery() {
             }
         }
 
+        // Increment current epoch to continue the recovery process
         this->current_epoch_++;
     }
 
-    // Setting the global epoch to the durable epoch after recovery completion
+    // Set the global epoch to the durable epoch after recovery completion
     GlobalEpoch = this->durable_epoch_;
     t_print(BGRN "\nRecovery finished. GlobalEpoch: %lu, %lu operations processed.\n" CRESET, GlobalEpoch, this->processed_operation_num_);
 }

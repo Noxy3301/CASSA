@@ -32,7 +32,13 @@ int RecoveryLogArchive::verify_epoch_level_integrity(std::vector<RecoveryLogReco
                 accmulated_hash += compute_hash_from_log_record(log_record);
             }
             // Update RecoveryLogArchive.previous_epoch_hash_
-            this->previous_epoch_hash_ = compute_hash_from_string(accmulated_hash);
+            std::string current_hash = compute_hash_from_string(accmulated_hash);
+            this->previous_epoch_hash_ = current_hash;
+
+            // Check if the epoch-level hash chain matches the hash of the last log record
+            if (current_hash == this->last_log_hash_) {
+                this->is_last_log_hash_matched = true;
+            }
 
             // Log-level integrity check
             if (!verify_log_level_integrity(*it)) {

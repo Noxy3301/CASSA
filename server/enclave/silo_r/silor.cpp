@@ -1,6 +1,6 @@
 #include "include/silor.h"
 
-void RecoveryManager::execute_recovery() {
+int RecoveryManager::execute_recovery() {
     /**
      * Executes the recovery process by performing the following steps:
      * 1. Reads the durable epoch from EPOCH_FILE_PATH (pepoch.seal) which indicates the last consistent state of the database.
@@ -16,16 +16,13 @@ void RecoveryManager::execute_recovery() {
 
     // Read the size of the durable epoch file
     size_t epoch_file_size = get_file_size(EPOCH_FILE_PATH);
-    t_print(DEBUG EPOCH_FILE_PATH ": size: %lu\n", epoch_file_size);
 
     // Read the durable epoch which indicates the last consistent state of the database
     this->durable_epoch_ = read_durable_epoch(EPOCH_FILE_PATH);
-    t_print(DEBUG EPOCH_FILE_PATH ": durable epoch: %lu\n", this->durable_epoch_);
 
     // Read the hashes of the last log records from the durable epoch file
     for (size_t i = 0; i < (epoch_file_size - sizeof(uint64_t)) / SHA256_HEXSTR_LEN; i++) {
         std::string last_log_hash = read_file(EPOCH_FILE_PATH, sizeof(uint64_t) + i * SHA256_HEXSTR_LEN, SHA256_HEXSTR_LEN);
-        t_print(DEBUG "last_log_hash[%lu]: %s\n", i, last_log_hash.c_str());
 
         // Creating a new log archive for each log file
         RecoveryLogArchive log_archive;
@@ -72,6 +69,12 @@ void RecoveryManager::execute_recovery() {
                     break;
                 }
 
+                // If last log hash is matched but log data still exists, it's an inconsistency
+                if (log_archive.is_last_log_hash_matched && !log_record_string.empty()) {
+                    t_print(BRED "Inconsistency detected: Log data exists even though last log hash matched.\n" CRESET);
+                    return -1;
+                }
+
                 // Deserialize log_set and add to buffer
                 RecoveryLogSet log_set = log_archive.deserialize_log_set(log_record_string);
                 log_archive.buffered_log_records_.push_back(log_set);
@@ -80,7 +83,7 @@ void RecoveryManager::execute_recovery() {
 
         // Validate log records for the current epoch and sort by tid
         for (auto &log_archive : this->log_archives_) {
-            if (log_archive.verify_epoch_level_integrity(this->current_epoch_log_records_, this->current_epoch_) != 0) return;
+            if (log_archive.verify_epoch_level_integrity(this->current_epoch_log_records_, this->current_epoch_) != 0) return -1;
         }
 
         // Sorting log records by tid
@@ -102,7 +105,7 @@ void RecoveryManager::execute_recovery() {
                 found_value->body_ = log_record.value_;
             } else {
                 t_print(BRED "Unknown operation_type_: %s\n" CRESET, log_record.operation_type_.c_str());
-                return;
+                return -1;
             }
         }
 
@@ -113,6 +116,8 @@ void RecoveryManager::execute_recovery() {
     // Set the global epoch to the durable epoch after recovery completion
     GlobalEpoch = this->durable_epoch_;
     t_print(BGRN "\nRecovery finished. GlobalEpoch: %lu, %lu operations processed.\n" CRESET, GlobalEpoch, this->processed_operation_num_);
+
+    return 0;
 }
 
 /**

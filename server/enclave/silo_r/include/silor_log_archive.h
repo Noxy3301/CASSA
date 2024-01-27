@@ -23,6 +23,7 @@ public:
 
     uint64_t current_read_offset_ = 0;
     bool is_all_data_read_ = false;
+    bool is_last_log_hash_matched = false;
 
     std::string previous_epoch_hash_ = "";
     std::vector<RecoveryLogSet> buffered_log_records_;

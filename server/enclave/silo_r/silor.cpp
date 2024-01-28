@@ -21,7 +21,7 @@ int RecoveryManager::execute_recovery() {
     this->durable_epoch_ = read_durable_epoch(EPOCH_FILE_PATH);
 
     // Read the hashes of the last log records from the durable epoch file
-    for (size_t i = 0; i < (epoch_file_size - sizeof(uint64_t)) / SHA256_HEXSTR_LEN; i++) {
+    for (size_t i = 0; i <= (epoch_file_size - sizeof(uint64_t)) / SHA256_HEXSTR_LEN; i++) {
         std::string last_log_hash = read_file(EPOCH_FILE_PATH, sizeof(uint64_t) + i * SHA256_HEXSTR_LEN, SHA256_HEXSTR_LEN);
 
         // Creating a new log archive for each log file

@@ -12,6 +12,9 @@
 #include "silo_log_writer.h"
 #include "silo_transaction.h"
 
+#include "../../silo_r/include/silor_util.h"
+#include "../../cassa_common/pass_phrase.h"
+
 class Logger {
 public:
     size_t thid_;
@@ -37,7 +40,7 @@ public:
     LoggerResult &logger_result_;
 
     // for log chain
-    std::string prev_epoch_hash_;
+    std::string prev_epoch_hash_ = compute_hash_from_string(PASSPHRASE);
 
     Logger(size_t i, Notifier &n, LoggerResult &myres)
         : thid_(i), notifier_stats_(n), logger_result_(myres) {}

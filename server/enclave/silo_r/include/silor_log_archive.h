@@ -12,6 +12,8 @@
 #include "silor_util.h"
 #include "silor_log_set.h"
 
+#include "../../cassa_common/pass_phrase.h"
+
 /**
  * @brief Stores and archives log data for recovery.
  */
@@ -25,7 +27,7 @@ public:
     bool is_all_data_read_ = false;
     bool is_last_log_hash_matched = false;
 
-    std::string previous_epoch_hash_ = "";
+    std::string previous_epoch_hash_ = compute_hash_from_string(PASSPHRASE);
     std::vector<RecoveryLogSet> buffered_log_records_;
     std::string last_log_hash_ = "";
 

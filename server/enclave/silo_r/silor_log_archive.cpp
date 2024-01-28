@@ -15,13 +15,7 @@ int RecoveryLogArchive::verify_epoch_level_integrity(std::vector<RecoveryLogReco
 
         // Epoch-level integrity check
         if (it->epoch_ == current_epoch) {
-            if (it->prev_epoch_hash_ == "") {
-                /**
-                 * 1つ目のlog_bufferの場合、this->prev_epoch_hash_はcredential_dataのhashと一致するはず
-                 * TODO: credential_dataのhashを取得する(あとで)
-                */
-                // t_print(DEBUG "it->prev_epoch_hash_ is empty.\n");
-            } else if (it->prev_epoch_hash_ != this->previous_epoch_hash_) {
+            if (it->prev_epoch_hash_ != this->previous_epoch_hash_) {
                 t_print(DEBUG BRED"Validation failed for epoch %u\n" CRESET, current_epoch);
                 return -1;
             }

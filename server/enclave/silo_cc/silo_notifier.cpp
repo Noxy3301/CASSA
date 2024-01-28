@@ -16,64 +16,15 @@
 #include "../cassa_common/json_message_formats.hpp" // for create_message
 
 /**
- * @brief Opens and maps a file to memory.
- * 
- * @note O_CREAT is used to create a new file if it does not exist. O_TRUNC is used to truncate the file to zero length
- */
-void PepochFile::open() {
-    // fd_ = ::open(file_name_.c_str(), O_CREAT|O_TRUNC|O_RDWR, 0644);
-    // if (fd_ == -1) {    // fd_は失敗したら-1になる(初期値も-1だけど何かしらの要因で事故ったらここに落ち着く)
-    //     std::cerr << "open failed: " << file_name_ << std::endl;
-    //     printf("ERR!");    //TODO: ERRの対処
-    // }
-    // std::uint64_t zero = 0;
-    // auto sz = ::write(fd_, &zero, sizeof(std::uint64_t));
-    // if (sz == -1) {
-    //     std::cerr << "write failed";
-    //     printf("ERR!");    //TODO: ERRの対処
-    // }
-    // addr_ = (std::uint64_t*)::mmap(NULL, sizeof(std::uint64_t), PROT_WRITE, MAP_SHARED, fd_, 0);
-    // if (addr_ == MAP_FAILED) {
-    //     std::cerr << "mmap failed";
-    //     printf("ERR!");    //TODO: ERRの対処
-    // }
-}
-
-/**
  * @brief Writes the (durable) epoch to the file.
  * 
  * @param epoch The epoch to write.
  */
-void PepochFile::write(std::uint64_t epoch) {
+void PepochFile::write_epoch(std::uint64_t epoch) {
     int ocall_ret;
-    sgx_status_t res, ocall_status;
-#ifdef NO_ENCRYPT
-    ocall_status = ocall_save_pepochfile(&ocall_ret, (uint8_t*)&epoch, sizeof(epoch));
-#else
-    size_t size = sizeof(uint64_t);
-    size_t sealed_size = sizeof(sgx_sealed_data_t) + size;
-    uint8_t* sealed_data = (uint8_t*)malloc(sealed_size);
-    // sgx_seal_data(0, NULL, plaintext_len, plaintext, ciph_size, (sgx_sealed_data_t *) sealed);
-    res = sgx_seal_data(0, NULL, size, (uint8_t*)&epoch, sealed_size, (sgx_sealed_data_t*)sealed_data);
-    assert(res == SGX_SUCCESS);
-    ocall_status = ocall_save_pepochfile(&ocall_ret, sealed_data, sealed_size);
-    free(sealed_data);
-#endif
-    // TODO: エラー表示
-    // if (ocall_ret != 0) printf("ERR! ocall_ret != 0\n");
-    // if (ocall_status != SGX_SUCCESS) printf("ERR! ocall_status != SGX_SUCCESS\n");
+    sgx_status_t ocall_status = ocall_save_pepochfile(&ocall_ret, (uint8_t*)&epoch, sizeof(epoch));
+    assert(ocall_ret == 0);
 }
-
-/**
- * @brief Closes the file which stores the (durable) epoch.
- */
-void PepochFile::close() {
-    // ::munmap(addr_, sizeof(std::uint64_t));
-    // ::close(fd_);
-    // fd_ = -1;
-}
-
-
 
 void NidBuffer::store(std::vector<NotificationId> &nid_buffer, std::uint64_t epoch) {
   NidBufferItem *itr = front_;
@@ -142,7 +93,6 @@ void NidBuffer::notify(std::uint64_t min_dl) {
 
 Notifier::Notifier() {
     start_clock_ = rdtscp();
-    pepoch_file_.open();
 }
 
 void Notifier::logger_end(Logger *logger) {
@@ -184,7 +134,7 @@ uint64_t Notifier::check_durable() {
         bool cas_success = __atomic_compare_exchange_n(&(DurableEpoch), &dl, min_dl, false, __ATOMIC_RELEASE, __ATOMIC_ACQUIRE);
         if (cas_success) {
             // store durable epoch
-            pepoch_file_.write(min_dl);
+            pepoch_file_.write_epoch(min_dl);
         }
     }
 

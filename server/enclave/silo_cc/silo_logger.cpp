@@ -55,7 +55,9 @@ void Logger::logging(bool quit) {
         if (log_buffer->max_epoch_ > max_epoch) {
             max_epoch = log_buffer->max_epoch_;
         }
-        log_buffer->write(logfile_, byte_count_);
+        // perform logging and update prev_epoch_hash_
+        prev_epoch_hash_ = log_buffer->write(this->thid_, this->logfile_, this->prev_epoch_hash_);
+
         log_buffer->pass_nid(nid_buffer_);
         log_buffer->return_buffer();
     }
@@ -186,7 +188,6 @@ void Logger::worker_end(int thid) {
  * @details Closes the log file, sets the joined flag, and notifies any waiting threads.
  */
 void Logger::logger_end() {
-    logfile_.close();
     std::lock_guard<std::mutex> lock(mutex_);
     joined_ = true;
     cv_finish_.notify_all();

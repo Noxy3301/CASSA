@@ -42,6 +42,9 @@
 #include "silo_cc/include/silo_notifier.h"
 #include "silo_cc/include/silo_util.h"
 
+// CASSA/Silo_Recovery
+#include "silo_r/include/silor.h"
+
 // CASSA/Masstree
 #include "masstree/include/masstree.h"
 
@@ -77,6 +80,13 @@ size_t num_logger_threads;
 
 SSLSessionHandler ssl_session_handler;
 TransactionBalancer tx_balancer;
+
+int ecall_perform_recovery() {
+    RecoveryManager recovery_manager;
+    int recovery_status = recovery_manager.execute_recovery();
+
+    return recovery_status;
+}
 
 void ecall_initialize_global_variables(size_t worker_num, size_t logger_num) {
     // Global epochを初期化する

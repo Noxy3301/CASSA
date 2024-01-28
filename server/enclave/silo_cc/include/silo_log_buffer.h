@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <atomic>
 #include <memory>   // for std::align
+#include <openssl/evp.h>    // For OpenSSL 3.0 compatible cryptographic interfaces
+#include <openssl/sha.h>    // For SHA-256 specific constants like SHA256_DIGEST_LENGTH
 
 #include "../../cassa_common/consts.h"
 
@@ -37,10 +39,12 @@ public:
     void pass_nid(NidBuffer &nid_buffer);
     void return_buffer();
     bool empty();
-    std::string create_json_log();
+    std::string calculate_hash(const uint64_t tid, const std::string &op_type, const std::string &key, const std::string &value);
+    std::string calculate_hash(const std::string &data);
+    std::string create_json_log(std::string &prev_epoch_hash, std::string &current_epoch_hash);
     std::string OpType_to_string(OpType op_type);
 
-    void write(PosixWriter &logfile, size_t &byte_count);
+    std::string write(size_t thid, PosixWriter &logfile, std::string &prev_epoch_hash);
 
 private:
     std::vector<LogRecord> log_set_;

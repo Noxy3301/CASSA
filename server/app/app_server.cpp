@@ -31,12 +31,15 @@
 // logfile生成用
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <fstream> //filestream
-#include <ostream>
+#include <fstream>
 #include <string>
+#include <ostream>
 
 #include <vector>
 #include <thread>
+
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "util/logger_affinity.hpp"
 
@@ -88,26 +91,92 @@ void print_error_message(sgx_status_t ret) {
         printf("Error code is 0x%X. Please refer to the \"Intel SGX SDK Developer Reference\" for more details.\n", ret);
 }
 
-void write_sealData(std::string filePath, const uint8_t* sealed_data, const size_t sealed_size) {
-    std::ofstream file(filePath, std::ios::out | std::ios::binary);
-    if (file.fail()) {
-        perror("file open failed");
-        abort();
+int ocall_read_file(const uint8_t *filename, size_t filename_size, uint8_t *data, size_t offset, size_t data_size) {
+    // Convert filename from uint8_t* to std::string and open file as binary
+    std::string filename_str(reinterpret_cast<const char*>(filename), filename_size);
+    std::ifstream file(filename_str, std::ios::in | std::ios::binary);
+    if (!file) {
+        printf("Host: Unable to open file: %s\n", filename_str.c_str());
+        return -1;  // Open failed
     }
-    file.write((const char*)sealed_data, sealed_size);
+
+    // Seek to the specified position
+    file.seekg(offset, std::ios::beg);
+    if (!file) {
+        printf("Host: Error seeking to position %zu in file: %s\n", offset, filename_str.c_str());
+        return -2; // Seek failed
+    }
+
+    // Read data from file
+    file.read(reinterpret_cast<char*>(data), data_size);
+    if (!file) {
+        printf("Host: Error reading data from file: %s\n", filename_str.c_str());
+        return -3; // Read failed
+    }
+
+    // Success
     file.close();
+    return 0;
 }
 
-int ocall_save_logfile(const uint8_t* sealed_data, const size_t sealed_size) {
-    int thid = 0;   // TODO: セッションがどのファイルに書き込むかを検討する
-    std::string filePath = "log/log" + std::to_string(thid) + ".seal";
-    write_sealData(filePath, sealed_data, sealed_size);
+size_t ocall_get_file_size(const uint8_t *filename, size_t filename_size) {
+    // Convert filename from uint8_t* to std::string
+    std::string file_name_str(reinterpret_cast<const char*>(filename), filename_size);
+
+    // Open file and get file size
+    std::ifstream file(file_name_str, std::ifstream::ate | std::ifstream::binary);
+    if (!file.is_open()) {
+        printf("Host: Unable to open file: %s\n", file_name_str.c_str());
+        return 0;
+    }
+
+    return static_cast<size_t>(file.tellg());
+}
+
+int ocall_save_logfile(size_t thid, const uint8_t* sealed_data, const size_t sealed_size) {
+    // open file
+    std::fstream file("log/log" + std::to_string(thid) + ".seal",
+                      std::ios::in | std::ios::out | std::ios::binary | std::ios::app);
+    if (!file) {
+        printf("Host: Unable to open file: log/log%zu.seal\n", thid);
+        return -1;
+    }
+
+    // append log
+    file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
+    file.close();
+    printf("Host: Logfile saved\n");
     return 0;
 }
 
 int ocall_save_pepochfile(const uint8_t* sealed_data, const size_t sealed_size) {
-    std::string filePath = "log/pepoch.seal";
-    write_sealData(filePath, sealed_data, sealed_size);
+    // open file
+    std::fstream file("log/pepoch.seal",
+                      std::ios::in | std::ios::out | std::ios::binary);
+    if (!file) {
+        printf("Host: Unable to open file: log/pepoch.seal\n");
+        return -1;
+    }
+
+    // Write durable epoch at the beginning of the file
+    file.seekp(0);
+    file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
+    file.close();
+    return 0;
+}
+
+int ocall_save_tail_log_hash(size_t thid, const uint8_t* sealed_data, const size_t sealed_size) {
+    // open file
+    std::fstream file("log/pepoch.seal",
+                      std::ios::in | std::ios::out | std::ios::binary);
+    if (!file) {
+        printf("Host: Unable to open file: log/pepoch.seal\n");
+        return -1;
+    }
+    // Seek to the corresponding position and write tail log hash
+    file.seekp(sizeof(uint64_t) + thid * 32);
+    file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
+    file.close();
     return 0;
 }
 
@@ -159,6 +228,44 @@ void terminate_enclave() {
     printf("Host: Enclave successfully terminated.\n");
 }
 
+bool is_directory_exist(const std::string& path) {
+    struct stat info;
+
+    // Check if the path exists using the stat function
+    if (stat(path.c_str(), &info) != 0) {
+        // Path does not exist or an error occurred
+        return false;
+    }
+
+    // Return true if the path is a directory
+    return (info.st_mode & S_IFDIR) != 0;
+}
+
+bool create_file(const std::string &filename) {
+    std::ofstream file(filename);
+    if (!file) {
+        printf("Error: Unable to create file %s\n", filename.c_str());
+        return false;
+    }
+    return true;
+}
+
+void create_log_files(size_t number_of_log_files) {
+    std::string dir_name = "log";
+
+    // make directory
+    if (mkdir(dir_name.c_str(), 0777) == -1) {
+        printf("Error: Unable to create directory %s\n", dir_name.c_str());
+        return;
+    }
+
+    // make epoch file and log files
+    create_file(dir_name + "/pepoch.seal");
+    for (size_t i = 0; i < number_of_log_files; i++) {
+        create_file(dir_name + "/log" + std::to_string(i) + ".seal");
+    }
+}
+
 int main(int argc, const char* argv[]) {
     sgx_status_t result = SGX_SUCCESS;
     int ret = 1;
@@ -170,16 +277,15 @@ int main(int argc, const char* argv[]) {
     std::vector<std::thread> logger_threads;
     std::thread ssl_connection_acceptor_thread;
 
-    size_t worker_num = 1;
-    size_t logger_num = 1;
+    size_t worker_num = 2;
+    size_t logger_num = 2;
 
     LoggerAffinity affin;
     affin.init(worker_num, logger_num);
     size_t w_thid = 0;  // Workerのthread ID
     size_t l_thid = 0;  // Loggerのthread ID, Workerのgroup IDとしても機能する
 
-    // ssl_connection_acceptor
-    // ssl_session_monitor
+    int ocall_ret;
 
     /* Check argument count */
     if (argc == 4) {
@@ -213,6 +319,20 @@ int main(int argc, const char* argv[]) {
     if (result != SGX_SUCCESS) {
         printf("- [Host] Status: Failed\n");
         goto exit;
+    }
+
+    if (is_directory_exist("log") == false) {
+        // If the log directory does not exist, create the directory and the file
+        printf("- [Host] Log directory does not exist, creating new directory...\n");
+        create_log_files(logger_num);
+    } else {
+        // If the log file exists, perform recovery
+        printf("- [Host] Log directory exists, performing recovery...\n");
+        ecall_perform_recovery(server_global_eid, &ocall_ret);
+        if (result != SGX_SUCCESS || ocall_ret != 0) {
+            printf("- [Host] Recovery failed\n");
+            goto exit;
+        }
     }
 
     printf("- [Host] Initialize CASSA settings\n");

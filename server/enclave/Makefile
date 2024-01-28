@@ -67,12 +67,19 @@ SILO_CC_OBJ_FILES = silo_log_buffer.o \
 					silo_transaction.o \
 					silo_util.o
 
+SILO_R_SRC_FILES = silo_r/silor.cpp \
+				   silo_r/silor_log_archive.cpp
+
+SILO_R_OBJ_FILES = silor.o \
+				   silor_log_archive.o
+
 TLS_SRC_FILES = openssl_server/tls_server.cpp
 TLS_OBJ_FILES = tls_server.o
 
 # source files
 SRC_FILES = $(TLS_SRC_FILES) \
 			$(SILO_CC_SRC_FILES) \
+			$(SILO_R_SRC_FILES) \
 			cassa_server.cpp \
 			../../sgx_socket/htonl.c \
 			../../sgx_socket/htons.c \
@@ -87,6 +94,7 @@ SRC_FILES = $(TLS_SRC_FILES) \
 OBJ_FILES = $(MASSTREE_OBJ_FILES) \
 			$(TLS_OBJ_FILES) \
 			$(SILO_CC_OBJ_FILES) \
+			$(SILO_R_OBJ_FILES) \
 			cassa_server.o \
 			htonl.o \
 			htons.o \

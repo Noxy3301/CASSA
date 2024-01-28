@@ -277,8 +277,8 @@ int main(int argc, const char* argv[]) {
     std::vector<std::thread> logger_threads;
     std::thread ssl_connection_acceptor_thread;
 
-    size_t worker_num = 1;
-    size_t logger_num = 1;
+    size_t worker_num = 2;
+    size_t logger_num = 2;
 
     LoggerAffinity affin;
     affin.init(worker_num, logger_num);

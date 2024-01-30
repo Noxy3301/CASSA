@@ -52,7 +52,7 @@
 #include "cassa_common/transaction_balancer.hpp"
 
 // OpenSSL Utilities
-#include "../../common/openssl_utility.h"
+#include "../../common/openssl_utility_enclave.h"
 #include "openssl_server/include/tls_server.h"
 #include "cassa_common/json_message_formats.hpp"
 

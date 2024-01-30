@@ -53,11 +53,11 @@ Client_Link_Flags := $(SGX_COMMON_CFLAGS) -L. -lssl \
 all: build
 
 build:
-	$(CXX) -c $(Client_Cpp_Flags) client.cpp ../common/err_msg.cpp ../common/verify_callback.cpp
-	$(CXX) -o tls_non_enc_client client.o err_msg.o verify_callback.o $(Client_Link_Flags) 
+	$(CXX) -c $(Client_Cpp_Flags) client.cpp ../common/err_msg.cpp ../common/verify_callback.cpp ../common/openssl_utility.cpp
+	$(CXX) -o cassa_client_host client.o err_msg.o verify_callback.o openssl_utility.o $(Client_Link_Flags) 
 
 clean:
-	rm -f tls_non_enc_client *.o
+	rm -f cassa_client_host *.o
 
 run:
-	./tls_non_enc_client -server:localhost -port:12341
+	./cassa_client_host -server:localhost -port:12341

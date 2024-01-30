@@ -1,11 +1,11 @@
 # CASSA: Cloud-Adapted Secure Silo Architecture
 
-### Server application
+### Server application (Need Scalable SGX)
 ```
 ./server/app/cassa_server_host ./server/enclave/cassa_server_enclave.signed.so -port:12341 -server-in-loop
 ```
 
-### Enclave Client application
+### Client application
 ```
-./client/app/cassa_client_host ./client/enclave/cassa_client_enclave.signed.so -server:localhost -port:12341
+./client/cassa_client_host -server:localhost -port:12341
 ```

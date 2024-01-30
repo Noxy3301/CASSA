@@ -225,6 +225,7 @@ void handle_command(SSL *ssl_session) {
             nlohmann::json test_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, op);
             std::string test_json_string = test_json.dump();
             send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
+            continue;
         }
 
         // handle operations if in transaction

@@ -43,8 +43,217 @@
 
 #include "../common/common.h"
 
+// ANSI color codes
+#include "../common/ansi_color_code.h"
+
+// Utilities
+#include "include/command_handler.hpp"
+#include "include/parse_command.hpp"
+
+#include "../common/openssl_utility.h"
+
 int verify_callback(int preverify_ok, X509_STORE_CTX* ctx);
 int create_socket(char* server_name, char* server_port);
+
+std::string client_session_id;
+
+/**
+ * @brief Send data to the server.
+ * @param data Data to send.
+ * @param data_size Size of data.
+ * 
+ * @note とりあえず動かすために移植しているけど書き直す
+*/
+void ecall_send_data(SSL *ssl_session, const char *data, size_t data_size) {
+    std::string data_str(reinterpret_cast<const char*>(data), data_size);
+    printf(TLS_CLIENT "send data to server: %s\n", data_str.c_str());
+    tls_write_to_session_peer(ssl_session, data_str);
+
+    // ここで受け取るのは適切じゃないけどテストということで
+    std::string response;
+    tls_read_from_session_peer(ssl_session, response);
+
+    // handle if reveiced data is command
+    std::string command;
+    std::istringstream iss(data_str);
+    std::getline(iss, command, ' ');    // get first token
+    if (command == "/get_session_id") {
+        printf(TLS_CLIENT "Session ID: %s\n", response.c_str());
+        client_session_id = response;
+    } else {
+        printf(TLS_CLIENT "Response from server: %s\n", response.c_str());
+    }
+}
+
+/**
+ * @brief request session ID from server
+ * @note This function is utilizing ecall_send_data() 
+ *       which non-blockingly fetch the data to receive 
+ *       session ID from the server for first.
+*/
+void request_session_id(SSL *ssl_session) {
+    // get current timestamp
+    timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    long int timestamp_sec = ts.tv_sec;
+    long int timestamp_nsec = ts.tv_nsec;
+
+    std::string command = std::string("/get_session_id") + " " + std::to_string(timestamp_sec) + " " + std::to_string(timestamp_nsec);
+
+    // send the command to the server
+    ecall_send_data(ssl_session, command.c_str(), command.length());
+}
+
+void handle_command(SSL *ssl_session) {
+    std::cout << BGRN << "[ INFO     ] " << CRESET 
+              << "Awaiting User Commands... (type '/help' for available commands, '/exit' to quit)" << std::endl;
+
+    CommandHandler command_handler;
+    std::vector<std::string> operations;
+    bool in_transaction = false;
+
+    // wait until ocall_set_client_session_id() sets the session ID assigned by the server
+    while (client_session_id.empty());
+
+    while (true) {
+        // if in transaction, print the current operations
+        if (in_transaction) {
+            for (size_t i = 0; i < operations.size(); i++) {
+                std::cout << CYN << std::setw(4) << std::right << i + 1 << " " << CRESET 
+                          << operations[i] << std::endl;
+            }
+        }
+
+        // if in transaction, print the green prompt
+        if (in_transaction) {
+            std::cout << CYN << "> " << CRESET;
+        } else {
+            std::cout << "> ";
+        }
+
+        // get command from user
+        std::string command;
+        std::getline(std::cin, command);
+
+        // exit the loop if EOF(ctrl+D) is detected or if "/exit" command is entered by the user
+        if (std::cin.eof() || command == "/exit") {
+            std::cout << "Exiting..." << std::endl;
+            break;
+        }
+
+        // handle /help command
+        if (command == "/help") {
+            command_handler.printHelp();
+            continue;
+        }
+
+        // handle /maketx command
+        if (command == "/maketx") {
+            // check if the user is already in transaction
+            if (in_transaction) {
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << "You are already in transaction. Please finish or abort the current transaction." << std::endl;
+            } else {
+                std::cout << BGRN << "[ INFO     ] " << CRESET
+                          << "You are now in transaction. Please enter operations." << std::endl;
+                operations.clear();
+
+                // set in_transaction to true
+                in_transaction = true;
+            }
+            continue;
+        }
+
+        // handle /endtx command
+        if (command == "/endtx") {
+            if (in_transaction) {
+                // set in_transaction to false
+                in_transaction = false;
+
+                // check if the transaction has at least 1 operation (except BEGIN_TRANSACTION and END_TRANSACTION)
+                if (operations.size() > 0) {
+                    // create timestamp
+                    timespec ts;
+                    clock_gettime(CLOCK_REALTIME, &ts);
+                    long int timestamp_sec = ts.tv_sec;
+                    long int timestamp_nsec = ts.tv_nsec;
+
+                    // create JSON object for the transaction
+                    nlohmann::json transaction_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, operations);
+
+                    // dump json object to string
+                    std::string transaction_json_string = transaction_json.dump();
+
+                    // send the transaction to the server
+                    ecall_send_data(ssl_session, transaction_json_string.c_str(), transaction_json_string.length());
+
+                    // CRESET the operations
+                    operations.clear();
+                }
+            } else {
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
+            }
+            continue;
+        }
+
+        // handle /undo command
+        if (command == "/undo") {
+            if (in_transaction) {
+                // check if the transaction has at least 1 operation (except BEGIN_TRANSACTION and END_TRANSACTION)
+                if (operations.size() > 0) {
+                    std::cout << BGRN << "[ INFO     ] " << CRESET
+                              << "Last operation " << GRN << "\"" <<  operations.back() << "\" " << CRESET << "removed from transaction." << std::endl;
+                    // remove the last operation
+                    operations.pop_back();
+                } else {
+                    std::cout << BRED << "[ ERROR    ] " << CRESET
+                              << "No operation to undo." << std::endl;
+                }
+            } else {
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
+            }
+            continue;
+        }
+
+        if (command == "/test") {
+            // create timestamp
+            timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            long int timestamp_sec = ts.tv_sec;
+            long int timestamp_nsec = ts.tv_nsec;
+            std::vector<std::string> op = {"INSERT hoge fuga", "INSERT piyo pao"};
+            nlohmann::json test_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, op);
+            std::string test_json_string = test_json.dump();
+            ecall_send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
+        }
+
+        // handle operations if in transaction
+        if (in_transaction) {
+            // check if the command is a valid operation
+            std::pair<bool, std::string> check_syntax_result = command_handler.checkOperationSyntax(command);
+            bool is_valid_syntax = check_syntax_result.first;
+            std::string operation = check_syntax_result.second;
+
+            if (is_valid_syntax) {
+                // if the operation is valid, add it to the transaction
+                operations.push_back(command);
+                std::cout << BGRN << "[ INFO     ] " << CRESET
+                          << "Operation " << GRN << "\"" <<  command << "\" " << CRESET << "added to transaction." << std::endl;
+            } else {
+                // if the operation is invalid, print the error message
+                std::cout << BRED << "[ ERROR    ] " << CRESET
+                          << check_syntax_result.second << std::endl;
+            }
+            continue;
+        }
+
+        // handle unknown command because valid command was not entered here
+        std::cout << BRED << "[ ERROR    ] " << CRESET
+                  << "Unknown command. Please enter '/help' to see available commands." << std::endl;
+    }
+}
 
 int parse_arguments(int argc, char** argv, char** server_name, char** server_port) {
     int ret = 1;
@@ -71,71 +280,6 @@ int parse_arguments(int argc, char** argv, char** server_name, char** server_por
 
 print_usage:
     printf(TLS_CLIENT "Usage: %s -server:<name> -port:<port>\n", argv[0]);
-done:
-    return ret;
-}
-
-// This routine conducts a simple HTTP request/response communication with
-// server
-int communicate_with_server(SSL* ssl) {
-    unsigned char buf[200];
-    int ret = 1;
-    int error = 0;
-    unsigned int len = 0;
-    int bytes_written = 0;
-    int bytes_read = 0;
-
-    // Write an GET request to the server
-    printf(TLS_CLIENT "-----> Write to server:\n");
-    len = snprintf((char*)buf, sizeof(buf) - 1, CLIENT_PAYLOAD);
-    while ((bytes_written = SSL_write(ssl, buf, (size_t)len)) <= 0)
-    {
-        error = SSL_get_error(ssl, bytes_written);
-        if (error == SSL_ERROR_WANT_WRITE)
-            continue;
-        printf(TLS_CLIENT "Failed! SSL_write returned %d\n", error);
-        if (bytes_written == 0) ret = -1;
-        else ret = bytes_written;
-        goto done;
-    }
-
-    printf(TLS_CLIENT "%d bytes written\n", bytes_written);
-
-    // Read the HTTP response from server
-    printf(TLS_CLIENT "<---- Read from server:\n");
-    do {
-        len = sizeof(buf) - 1;
-        memset(buf, 0, sizeof(buf));
-        bytes_read = SSL_read(ssl, buf, (size_t)len);
-        if (bytes_read <= 0) {
-            int error = SSL_get_error(ssl, bytes_read);
-            if (error == SSL_ERROR_WANT_READ)
-                continue;
-
-            printf(TLS_CLIENT "Failed! SSL_read returned error=%d\n", error);
-            if (bytes_read == 0) ret = -1;
-            else ret = bytes_read;
-            goto done;
-        }
-
-        printf(TLS_CLIENT " %d bytes read\n", bytes_read);
-        
-        // check to to see if received payload is expected
-        // Note that if you want to use client here but server from other 
-        // applications, you need to ignore this check for SERVER_PAYLOAD_SIZE
-        // which need to be adjusted for an actual value
-        if ((bytes_read != SERVER_PAYLOAD_SIZE) || (memcmp(SERVER_PAYLOAD, buf, bytes_read) != 0)) {
-            printf(TLS_CLIENT "ERROR: expected reading %lu bytes but only " "received %d bytes\n", SERVER_PAYLOAD_SIZE, bytes_read);
-            ret = bytes_read;
-            goto done;
-        } else {
-            printf(TLS_CLIENT " received all the expected data from server\n\n");
-            ret = 0;
-            printf("Verified: the contents of server payload were expected\n\n");
-            break;
-        }
-    } while (1);
-    ret = 0;
 done:
     return ret;
 }
@@ -250,11 +394,11 @@ int main(int argc, char** argv) {
     }
     printf(TLS_CLIENT "successfully established TLS channel:%s\n", SSL_get_version(ssl));
 
-    // start the client server communication
-    if ((error = communicate_with_server(ssl)) != 0) {
-        printf(TLS_CLIENT "Failed: communicate_with_server (ret=%d)\n", error);
-        goto done;
-    }
+    // request session ID from server
+    request_session_id(ssl);
+
+    // handle commands
+    handle_command(ssl);
 
     // Free the structures we don't need anymore
     ret = 0;

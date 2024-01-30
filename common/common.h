@@ -26,7 +26,10 @@
 
 #define TLS_CLIENT "- [TLS client] "
 #define TLS_SERVER "- [TLS server] "
+#ifndef DEBUG
 #define DEBUG "[ DEBUG ] "
+#endif
+
 
 #define CLIENT_PAYLOAD "GET / HTTP/1.0\r\n\r\n"
 #define SERVER_PAYLOAD                                   \

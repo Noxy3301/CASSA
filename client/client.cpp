@@ -61,10 +61,8 @@ std::string client_session_id;
  * @brief Send data to the server.
  * @param data Data to send.
  * @param data_size Size of data.
- * 
- * @note とりあえず動かすために移植しているけど書き直す
 */
-void ecall_send_data(SSL *ssl_session, const char *data, size_t data_size) {
+void send_data(SSL *ssl_session, const char *data, size_t data_size) {
     std::string data_str(reinterpret_cast<const char*>(data), data_size);
     printf(TLS_CLIENT "send data to server: %s\n", data_str.c_str());
     tls_write_to_session_peer(ssl_session, data_str);
@@ -87,7 +85,7 @@ void ecall_send_data(SSL *ssl_session, const char *data, size_t data_size) {
 
 /**
  * @brief request session ID from server
- * @note This function is utilizing ecall_send_data() 
+ * @note This function is utilizing send_data() 
  *       which non-blockingly fetch the data to receive 
  *       session ID from the server for first.
 */
@@ -101,7 +99,7 @@ void request_session_id(SSL *ssl_session) {
     std::string command = std::string("/get_session_id") + " " + std::to_string(timestamp_sec) + " " + std::to_string(timestamp_nsec);
 
     // send the command to the server
-    ecall_send_data(ssl_session, command.c_str(), command.length());
+    send_data(ssl_session, command.c_str(), command.length());
 }
 
 void handle_command(SSL *ssl_session) {
@@ -185,7 +183,7 @@ void handle_command(SSL *ssl_session) {
                     std::string transaction_json_string = transaction_json.dump();
 
                     // send the transaction to the server
-                    ecall_send_data(ssl_session, transaction_json_string.c_str(), transaction_json_string.length());
+                    send_data(ssl_session, transaction_json_string.c_str(), transaction_json_string.length());
 
                     // CRESET the operations
                     operations.clear();
@@ -226,7 +224,7 @@ void handle_command(SSL *ssl_session) {
             std::vector<std::string> op = {"INSERT hoge fuga", "INSERT piyo pao"};
             nlohmann::json test_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, op);
             std::string test_json_string = test_json.dump();
-            ecall_send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
+            send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
         }
 
         // handle operations if in transaction
@@ -284,21 +282,30 @@ done:
     return ret;
 }
 
-// create a socket and connect to the server_name:server_port
+/**
+ * @brief Create a socket and connect to the server_name:server_port
+ * 
+ * @param server_name The name or IP address of the server.
+ * @param server_port The server port number.
+ * @return Socket file descriptor on success, -1 on failure.
+*/
 int create_socket(char* server_name, char* server_port) {
     int sockfd = -1;
     struct addrinfo hints, *dest_info, *curr_di;
     int res;
 
+    // Initialize hints for IPv4 and TCP
     hints = {0};
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
+    // Resolve the server hostname
     if ((res = getaddrinfo(server_name, server_port, &hints, &dest_info)) != 0) {
         printf(TLS_CLIENT "Error: Cannot resolve hostname %s. %s\n", server_name, gai_strerror(res));
         goto done;
     }
 
+    // Find the first IPv4 address
     curr_di = dest_info;
     while (curr_di) {
         if (curr_di->ai_family == AF_INET) {
@@ -308,17 +315,20 @@ int create_socket(char* server_name, char* server_port) {
         curr_di = curr_di->ai_next;
     }
 
+    // Check if a valid address was found
     if (!curr_di) {
         printf(TLS_CLIENT "Error: Cannot get address for hostname %s.\n", server_name);
         goto done;
     }
 
+    // Create a socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         printf(TLS_CLIENT "Error: Cannot create socket %d.\n", errno);
         goto done;
     }
 
+    // Connect to the server
     if (connect(sockfd, (struct sockaddr*)curr_di->ai_addr, sizeof(struct sockaddr)) == -1) {
         printf(TLS_CLIENT "failed to connect to %s:%s (errno=%d)\n", server_name, server_port, errno);
         close(sockfd);
@@ -328,6 +338,7 @@ int create_socket(char* server_name, char* server_port) {
     printf(TLS_CLIENT "connected to %s:%s\n", server_name, server_port);
 
 done:
+    // Clean up
     if (dest_info)
         freeaddrinfo(dest_info);
 
@@ -386,6 +397,7 @@ int main(int argc, char** argv) {
     }
 
     printf(TLS_CLIENT "create a socket and initate a TCP connect to server: %s:%s " "\n", server_name, server_port);
+    
     // setup ssl socket and initiate TLS connection with TLS server
     SSL_set_fd(ssl, serversocket);
     if ((error = SSL_connect(ssl)) != 1){

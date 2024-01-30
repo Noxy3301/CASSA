@@ -11,9 +11,9 @@
 // #include "../../common/cassa/structures.h"
 // #include "../../common/cassa/consts.h"
 
-#include "../../../common/third_party/json.hpp"
+#include "../../common/third_party/json.hpp"
 
-#include "../../../common/ansi_color_code.h"
+#include "../../common/ansi_color_code.h"
 
 class CommandHandler {
 public:

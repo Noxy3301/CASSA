@@ -4,7 +4,7 @@
 #include <sstream>
 #include <vector>
 
-#include "../../../common/third_party/json.hpp"
+#include "../../common/third_party/json.hpp"
 
 /**
  * @brief Parse commands and generate JSON object

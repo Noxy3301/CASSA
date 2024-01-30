@@ -1,3 +1,5 @@
+#pragma once
+
 /**
 *
 * MIT License
@@ -24,4 +26,16 @@
 *
 */
 
-#include "openssl_client/include/tls_client.h"
+#include "openssl_utility.h"
+
+#include "sgx_ttls.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include "utility.h"
+
+sgx_status_t load_tls_certificates_and_keys(
+    SSL_CTX* ctx,
+    X509*& certificate,
+    EVP_PKEY*& pkey);
+
+sgx_status_t initalize_ssl_context(SSL_CONF_CTX*& ssl_conf_ctx, SSL_CTX*& ctx);

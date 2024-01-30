@@ -86,6 +86,7 @@ SRC_FILES = $(TLS_SRC_FILES) \
 			../../sgx_socket/trusted_sgx_socket.cpp \
 			../../common/err_msg.cpp \
 			../../common/openssl_utility.cpp \
+			../../common/openssl_utility_enclave.cpp \
 			../../common/tcommon.cpp \
 			../../common/utility.cpp \
 			../../common/verify_callback.cpp \
@@ -101,6 +102,7 @@ OBJ_FILES = $(MASSTREE_OBJ_FILES) \
 			trusted_sgx_socket.o \
 			err_msg.o \
 			openssl_utility.o \
+			openssl_utility_enclave.o \
 			tcommon.o \
 			utility.o \
 			verify_callback.o \
@@ -125,7 +127,7 @@ build:
 		--search-path $(SGXSSL_PKG_PATH)/include \
 		--search-path ../app
 
-	$(CXX) -c -DM_TLS_SERVER $(Enclave_Cpp_Flags) -I. -std=c++17 -include "tsgxsslio.h" ${SRC_FILES} -DNO_ENCRYPT
+	$(CXX) -c -DM_TLS_SERVER $(Enclave_Cpp_Flags) -I. -std=c++17 -include "tsgxsslio.h" ${SRC_FILES} -DNO_ENCRYPT -DUSE_SGX
 	$(CC) -c $(Enclave_C_Flags) -I. cassa_server_t.c
 	$(CXX) -o $(ENC_CASSA_SERVER_Name) $(OBJ_FILES) $(Enclave_Link_Flags)  
 

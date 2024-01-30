@@ -10,7 +10,7 @@
 
 #include "../cassa_server_t.h"  // for ocall_save_pepochfile
 #include "../cassa_server.h"    // for ssl_session_handler
-#include "../../../common/openssl_utility.h" // for tls communication
+#include "../../../common/openssl_utility_enclave.h" // for tls communication
 #include "../../../common/common.h" // for t_print
 #include "../cassa_common/ssl_session_handler.hpp" // for SSLSession
 #include "../cassa_common/json_message_formats.hpp" // for create_message

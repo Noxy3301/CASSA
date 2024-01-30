@@ -29,37 +29,35 @@
 #
 #
 
-# MIT License
-#
-# Copyright (c) Open Enclave SDK contributors.
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE
+include ../sgxenv.mk
+
+Client_Include_Path := -I. -I$(SGX_SDK)/include -I/usr/include/openssl 
+Client_Cpp_Flags := -DCLIENT_USE_QVL $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(Client_Include_Path)
+
+ifeq ($(SGX_DEBUG), 1)
+	Client_Cpp_Flags += -DDEBUG -UNDEBUG -UEDEBUG
+else ifeq ($(SGX_PRERELEASE), 1)
+	Client_Cpp_Flags += -DNDEBUG -DEDEBUG -UDEBUG
+else
+	Client_Cpp_Flags += -DNDEBUG -UEDEBUG -UDEBUG
+endif
+
+Client_Cpp_Flags += -std=c++11
+
+Client_Link_Flags := $(SGX_COMMON_CFLAGS) -L. -lssl \
+	-L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lsgx_utls \
+	-lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto
+
+.PHONY: all build clean #run
 
 all: build
 
 build:
-	$(MAKE) -C app
-	$(MAKE) -C enclave
+	$(CXX) -c $(Client_Cpp_Flags) client.cpp ../common/err_msg.cpp ../common/verify_callback.cpp ../common/openssl_utility.cpp
+	$(CXX) -o cassa_client_host client.o err_msg.o verify_callback.o openssl_utility.o $(Client_Link_Flags) 
 
 clean:
-	$(MAKE) -C app clean
-	$(MAKE) -C enclave clean
+	rm -f cassa_client_host *.o
 
 run:
-	app/cassa_client_host ./enclave/cassa_client_enclave.signed.so -server:localhost -port:12341
+	./cassa_client_host -server:localhost -port:12341

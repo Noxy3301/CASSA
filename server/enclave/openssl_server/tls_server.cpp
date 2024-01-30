@@ -35,7 +35,7 @@
 #include <string>
 
 #include "include/tls_server.h"
-#include "../../../common/openssl_utility.h"
+#include "../../../common/openssl_utility_enclave.h"
 
 #include "../cassa_server.h"
 

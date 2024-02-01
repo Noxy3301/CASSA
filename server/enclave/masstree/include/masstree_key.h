@@ -84,19 +84,24 @@ class Key {
             return !(*this == right);
         }
 
-        // TODO: operator<のテストを書く
         // 演算子 < のオーバーロード
         bool operator<(const Key& right) const {
-            if (slices.size() < right.slices.size()) return true;   // slices.size() が小さい方が小さいと判断する
-            if (slices.size() > right.slices.size()) return false;  // slices.size() が大きい方が大きいと判断する
-            // slices.size() が等しい場合、各要素を比較する
-            for (size_t i = 0; i < slices.size(); i++) {
-                if (slices[i] < right.slices[i]) return true;   // slices の各要素で小さい方が小さいと判断する
-                if (slices[i] > right.slices[i]) return false;  // slices の各要素で大きい方が大きいと判断する
+            // 最小のサイズを取得して、それに基づいてスライスを比較
+            size_t minSize = std::min(slices.size(), right.slices.size());
+            for (size_t i = 0; i < minSize; i++) {
+                // スライスが異なる場合は、そのスライスに基づいて比較結果を返す
+                if (slices[i] != right.slices[i]) {
+                    return slices[i] < right.slices[i];
+                }
             }
-            // slices が完全に等しい場合、lastSliceSize を比較する
-            // lastSliceSize が小さい方が小さいと判断する
-            return lastSliceSize < right.lastSliceSize;
+
+            // すべてのスライスが等しい場合は、最後のスライスのサイズで比較
+            if (lastSliceSize != right.lastSliceSize) {
+                return lastSliceSize < right.lastSliceSize;
+            }
+
+            // スライスの数が異なる場合は、スライスの数が少ない方が小さいと判断
+            return slices.size() < right.slices.size();
         }
 
         std::pair<std::vector<uint64_t>, size_t> string_to_uint64t(const std::string &key) {

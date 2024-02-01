@@ -45,12 +45,14 @@ MASSTREE_SRC_FILES = masstree/masstree_get.cpp \
 					 masstree/masstree_insert.cpp \
 					 masstree/masstree_node.cpp \
 					 masstree/masstree_remove.cpp \
+					 masstree/masstree_scan.cpp \
 					 masstree/masstree.cpp
 
 MASSTREE_OBJ_FILES = masstree_get.o \
 					 masstree_insert.o \
 					 masstree_node.o \
 					 masstree_remove.o \
+					 masstree_scan.o \
 					 masstree.o
 
 SILO_CC_SRC_FILES = silo_cc/silo_log_buffer.cpp \

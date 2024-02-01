@@ -80,7 +80,9 @@ public:
     Status read(std::string &str_key, std::string &retrun_value);
     Status read_internal(Key &key, Value *value);
     Status write(std::string &str_key, std::string &str_value);
-    // Status scan(Key &left_key, bool l_exclusive, Key &right_key, bool r_exclusive, std::vector<Value *> &result); // キーの範囲スキャン
+    Status scan(std::string str_left_key, bool l_exclusive,
+                std::string str_right_key, bool r_exclusive,
+                std::vector<std::pair<std::string, std::string>> &result);
     
     // 並行制御とロック管理
     void lockWriteSet(); // 書き込みセットのロック

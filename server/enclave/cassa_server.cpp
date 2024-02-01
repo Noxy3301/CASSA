@@ -315,14 +315,24 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
             op_type = OpType::READ;
         } else if (operation_str == "WRITE") {
             op_type = OpType::WRITE;
+        } else if (operation_str == "SCAN") {
+            op_type = OpType::SCAN;
         } else {
             t_print(TLS_SERVER "Unknown operation: %s\n", operation_str.c_str());
             return -2;
         }
 
-        std::string key_str = operation["key"];
-        std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ), set empty string
-        procedures.emplace_back(op_type, key_str, value_str);
+        if (op_type == OpType::SCAN) {
+            std::string left_key = operation["left_key"];
+            bool l_exclusive = operation["l_exclusive"].get<bool>();
+            std::string right_key = operation["right_key"];
+            bool r_exclusive = operation["r_exclusive"].get<bool>();
+            procedures.emplace_back(op_type, left_key, l_exclusive, right_key, r_exclusive);
+        } else {
+            std::string key_str = operation["key"];
+            std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ), set empty string
+            procedures.emplace_back(op_type, key_str, value_str);
+        }
     }
 
     return 0;
@@ -367,6 +377,7 @@ RETRY:
     trans.begin(trans.session_id_);
     Status status = Status::OK;
     std::string read_value; // Store the value retrieved by the read operation
+    std::vector<std::pair<std::string, std::string>> scan_result; // Store the result of the scan operation
 
     for (auto itr = trans.pro_set_.begin(); itr != trans.pro_set_.end(); itr++) {
         switch ((*itr).ope_) {
@@ -396,9 +407,19 @@ RETRY:
             // case OpType::RMW:
             //     trans.rmw(key, value);
             //     break;
-            // case OpType::SCAN:
-            //     trans.scan(key);
-            //     break;
+            case OpType::SCAN:
+                status = trans.scan((*itr).left_key_, (*itr).l_exclusive_,
+                                    (*itr).right_key_, (*itr).r_exclusive_,
+                                    scan_result);
+                if (status == Status::ERROR_CONCURRENT_WRITE_OR_DELETE) {
+                    t_print(DEBUG TLS_SERVER "Concurrent write or delete detected\n");
+                } else if (status == Status::OK) {
+                    for (auto &scan_result_pair : scan_result) {
+                        trans.nid_.read_key_value_pairs.emplace_back(scan_result_pair);
+                        t_print(DEBUG TLS_SERVER "Key: %s, Value: %s\n", scan_result_pair.first.c_str(), scan_result_pair.second.c_str());
+                    }
+                }
+                break;
             // case OpType::DELETE:
             //     trans.del(key);
             //     break;

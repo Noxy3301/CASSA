@@ -142,6 +142,69 @@ Status TxExecutor::read_internal(Key &key, Value *value) {
     return Status::OK;
 }
 
+/**
+ * @brief Performs a range scan operation within the specified key range.
+ * 
+ * @param str_left_key The starting key of the scan range, as a string.
+ * @param l_exclusive Flag indicating whether the starting key is exclusive (true) or inclusive (false).
+ * @param str_right_key The ending key of the scan range, as a string.
+ * @param r_exclusive Flag indicating whether the ending key is exclusive (true) or inclusive (false).
+ * @param result Reference to a vector where the scan results will be stored as pairs of strings.
+ * @return Status::OK if the scan operation completes successfully, or an appropriate error status otherwise.
+ */
+Status TxExecutor::scan(std::string str_left_key, bool l_exclusive,
+                        std::string str_right_key, bool r_exclusive,
+                        std::vector<std::pair<std::string, std::string>> &result) {
+    // Clear any existing results
+    result.clear();
+    auto read_set_init_size = read_set_.size();
+
+    // Convert string keys to Key objects for scanning
+    Key left_key_obj(str_left_key);
+    Key right_key_obj(str_right_key);
+
+    // Store scan results temporarily
+    std::vector<std::pair<Key, Value*>> scan_result;
+
+    // Perform the scan operation on the masstree
+    masstree.scan(left_key_obj, l_exclusive, right_key_obj, r_exclusive, scan_result);
+
+    for (auto &pair : scan_result) {
+        // Check if the key is in the read set
+        ReadElement *readElement = searchReadSet(pair.first);
+        if (readElement) {
+            // If found, use the value from the read set
+            std::string key_str = pair.first.uint64t_to_string(pair.first.slices, pair.first.lastSliceSize);
+            result.emplace_back(key_str, readElement->value_->body_);
+            continue;
+        }
+
+        // Check if the key is in the write set
+        WriteElement *writeElement = searchWriteSet(pair.first);
+        if (writeElement) {
+            // If found, use the new value from the write set
+            std::string key_str = pair.first.uint64t_to_string(pair.first.slices, pair.first.lastSliceSize);
+            result.emplace_back(key_str, writeElement->get_new_value_body());
+            continue;
+        }
+
+        // If not found in local sets, check the actual value and add to results
+        Status status = read_internal(pair.first, pair.second);
+        if (status != Status::OK && status != Status::WARN_NOT_FOUND) {
+            return status;
+        }
+    }
+
+    // Add any new entries from the read set to the result if read set was modified during the scan
+    if (read_set_init_size != read_set_.size()) {
+        for (auto itr = read_set_.begin() + read_set_init_size; itr != read_set_.end(); itr++) {
+            std::string key_str = itr->key_.uint64t_to_string(itr->key_.slices, itr->key_.lastSliceSize);
+            result.emplace_back(key_str, itr->value_->body_);
+        }
+    }
+
+  return Status::OK;
+}
 
 /**
  * @brief Performs a local update of a record within TxExecutor using the provided value.
@@ -173,9 +236,6 @@ Status TxExecutor::write(std::string &str_key, std::string &str_value) {
 FINISH_WRITE:
     return Status::OK;
 }
-
-// TODO: scan implementation
-// Status TxExecutor::scan(Key &left_key, bool l_exclusive, Key &right_key, bool r_exclusive, std::vector<Value *> &result) {}
 
 /**
  * @brief Locks objects in the write set of a transaction.

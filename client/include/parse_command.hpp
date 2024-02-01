@@ -39,29 +39,47 @@ nlohmann::json parse_command(long int timestamp_sec,
     // parse operations and add them to the transaction
     for (const auto &command : commands) {
         std::istringstream ss(command);
-        std::string word;
-        while (ss >> word) {
-            nlohmann::json operation = nlohmann::json::object();
+        std::string operation_type;
+        ss >> operation_type;
+
+        if (operation_type == "SCAN") {
+            std::string left_key, right_key;
+            bool l_exclusive, r_exclusive;
+
+            ss >> left_key >> std::boolalpha >> l_exclusive >> right_key >> std::boolalpha >> r_exclusive;
+
+            nlohmann::json operation = {
+                {"operation", "SCAN"},
+                {"left_key", left_key},
+                {"l_exclusive", l_exclusive},
+                {"right_key", right_key},
+                {"r_exclusive", r_exclusive}
+            };
+
+            transaction["transaction"].push_back(operation);
+        } else {
+            // Handle other operations (INSERT, READ, WRITE, etc.) as before
             std::string key, value;
             ss >> key;
-
-            if (word == "INSERT" || word == "WRITE" || word == "RMW") {
+            if (operation_type == "INSERT" || operation_type == "WRITE" || operation_type == "RMW") {
                 ss >> value;
-                operation["operation"] = word;
-                operation["key"] = key;
-                operation["value"] = value;
+                nlohmann::json operation = {
+                    {"operation", operation_type},
+                    {"key", key},
+                    {"value", value}
+                };
 
                 transaction["transaction"].push_back(operation);
-            } else if (word == "READ" || word == "DELETE") {
-                operation["operation"] = word;
-                operation["key"] = key;
+            } else if (operation_type == "READ" || operation_type == "DELETE") {
+                nlohmann::json operation = {
+                    {"operation", operation_type},
+                    {"key", key}
+                };
 
                 transaction["transaction"].push_back(operation);
-            } else if (word == "SCAN") {
-                // TODO: SCAN
             }
         }
     }
-    // return empty json object if the transaction is empty
+
     return transaction;
 }

@@ -237,9 +237,6 @@ FINISH_WRITE:
     return Status::OK;
 }
 
-// TODO: scan implementation
-// Status TxExecutor::scan(Key &left_key, bool l_exclusive, Key &right_key, bool r_exclusive, std::vector<Value *> &result) {}
-
 /**
  * @brief Locks objects in the write set of a transaction.
  *

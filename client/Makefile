@@ -50,7 +50,7 @@ Client_Link_Flags := $(SGX_COMMON_CFLAGS) -L. -lssl \
 
 .PHONY: all build clean #run
 
-all: build
+all: extract-mrsigner build
 
 build:
 	$(CXX) -c $(Client_Cpp_Flags) client.cpp ../common/err_msg.cpp ../common/verify_callback.cpp ../common/openssl_utility.cpp
@@ -58,6 +58,9 @@ build:
 
 clean:
 	rm -f cassa_client_host *.o
+
+extract-mrsigner:
+	./extract_mrsigner.sh
 
 run:
 	./cassa_client_host -server:localhost -port:12341

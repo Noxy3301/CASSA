@@ -35,6 +35,9 @@
 #include "utility.h"
 #include "common.h"
 
+#ifdef CLIENT_USE_QVL
+#include "verify_mrsigner.h"
+#endif
 
 // The return value of verify_callback controls the strategy of the further
 // verification process. If verify_callback returns 0, the verification process
@@ -220,6 +223,12 @@ int verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
             PRINT("You can define your own verification policy based on below info:\n");
             p_sgx_tls_qv_err_msg(qv_result);
         }
+
+        // DER形式の証明書データからSGX Quoteを抽出して、MRSIGNERを比較 (clientのみ)
+#ifdef CLIENT_USE_QVL
+        extract_sgx_quote_from_der_cert(der, der_len);
+#endif
+
     }
 
     FREE_SUPDATA(sup_data);

@@ -122,7 +122,7 @@ int verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
 
         // DER形式の証明書データからSGX Quoteを抽出して、MRSIGNERを比較 (clientのみ)
 #ifdef CLIENT_USE_QVL
-        if (!extract_sgx_quote_from_der_cert(der, der_len)) {
+        if (!verify_mrsigner(der, der_len)) {
             FREE_SUPDATA(sup_data);
             ret = 0;
             goto done;

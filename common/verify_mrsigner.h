@@ -80,7 +80,7 @@ bool extract_mrsigner_from_sgx_quote(const unsigned char* quote, int quote_len) 
     }
 }
 
-bool extract_sgx_quote_from_der_cert(unsigned char* der, int der_len) {
+bool verify_mrsigner(unsigned char* der, int der_len) {
     bool result = false;
     X509* cert = nullptr;
     ASN1_OBJECT* sgx_quote_oid_obj = nullptr;

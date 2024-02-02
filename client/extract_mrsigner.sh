@@ -18,4 +18,4 @@ grep "mrsigner->value:" out.log -A 32 | \
   xxd -r -p > $OUTPUT_FILE
 
 # ログファイルを削除
-# rm out.log
+rm out.log

@@ -131,7 +131,6 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
         SSL *ssl_session = accept_client_connection(server_socket_fd, ssl_server_ctx);
         if (ssl_session == nullptr) {
             t_print(TLS_SERVER "Error: accept_client_connection() failed\n");
-            break;
         } else {
             std::string session_id = ssl_session_handler.addSession(ssl_session);
             t_print(TLS_SERVER "Accepted client connection (session_id: %s)\n", session_id.c_str());

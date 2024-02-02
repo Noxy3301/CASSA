@@ -27,3 +27,6 @@ log/
 
 # executable files
 *.out
+
+# mrsigner file
+mrsigner.bin

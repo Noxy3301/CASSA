@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "../../../../common/common.h" // for t_print()
+#include "../../../../common/log_macros.h"
 #include "../../cassa_server.h"
 
 #include "silor_log_archive.h"
@@ -25,6 +26,8 @@ public:
 
     // recovery function
     int execute_recovery();
+
+    bool is_valid_hex_string(const std::string &str);
 
     // pepoch.seal
     uint64_t read_durable_epoch(std::string file_name);

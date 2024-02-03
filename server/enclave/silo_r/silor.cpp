@@ -28,6 +28,11 @@ int RecoveryManager::execute_recovery() {
         RecoveryLogArchive log_archive;
         log_archive.log_file_name_ = "log/log" + std::to_string(i) + ".seal";
         log_archive.last_log_hash_ = last_log_hash;
+        if (!is_valid_hex_string(log_archive.last_log_hash_)) {
+            t_print(LOG_INFO "Last log hash not found for %s\n", log_archive.log_file_name_.c_str());
+            log_archive.is_last_log_hash_matched = true;
+            log_archive.is_all_data_read_ = true;
+        }
         this->log_archives_.push_back(log_archive);
     }
 
@@ -45,7 +50,7 @@ int RecoveryManager::execute_recovery() {
         double progress = (this->current_epoch_ == 0) ? 0.0 : static_cast<double>(this->current_epoch_) / this->durable_epoch_ * 100.0;
         if (progress != this->recovery_progress_) {
             this->recovery_progress_ = progress;
-            t_print("Recovery progress: %.2f%%\r", this->recovery_progress_);
+            t_print(LOG_INFO "Recovery progress: %.2f%%\r", this->recovery_progress_);
         }
 
         // Read log records from each log archive and deserialize them
@@ -118,6 +123,19 @@ int RecoveryManager::execute_recovery() {
     t_print(BGRN "\nRecovery finished. GlobalEpoch: %lu, %lu operations processed.\n" CRESET, GlobalEpoch, this->processed_operation_num_);
 
     return 0;
+}
+
+
+bool RecoveryManager::is_valid_hex_string(const std::string &str) {
+    if (str.empty()) {
+        return false; // Empty string is not a valid hex string
+    }
+    for (char ch : str) {
+        if (!std::isxdigit(static_cast<unsigned char>(ch))) {
+            return false; // Non-hexadecimal character found
+        }
+    }
+    return true; // All characters are hexadecimal
 }
 
 /**

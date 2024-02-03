@@ -118,6 +118,13 @@ int RecoveryManager::execute_recovery() {
         this->current_epoch_++;
     }
 
+    for (auto &log_archive : this->log_archives_) {
+        if (!log_archive.is_last_log_hash_matched) {
+            t_print(LOG_ERROR "Inconsistency detected: Last log hash (%s) not matched.\n", log_archive.log_file_name_.c_str());
+            return -1;
+        }
+    }
+
     // Set the global epoch to the durable epoch after recovery completion
     GlobalEpoch = this->durable_epoch_;
     t_print(BGRN "\nRecovery finished. GlobalEpoch: %lu, %lu operations processed.\n" CRESET, GlobalEpoch, this->processed_operation_num_);

@@ -176,7 +176,9 @@ int ocall_save_tail_log_hash(size_t thid, const uint8_t* sealed_data, const size
         return -1;
     }
     // Seek to the corresponding position and write tail log hash
-    file.seekp(sizeof(uint64_t) + thid * 32);
+    // NOTE: Stored as a 64-character hex string representing a 32-byte SHA256 hash
+    // TODO: どっかでdefineして一元化する
+    file.seekp(sizeof(uint64_t) + thid * 64);
     file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
     file.close();
     return 0;

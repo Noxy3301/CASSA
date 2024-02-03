@@ -35,6 +35,8 @@
 #include <map>
 #include <string>
 
+#include "log_macros.h"
+
 /* translate error code here 
  * qv result code and quote3 error code
  */
@@ -56,56 +58,62 @@ typedef enum _log_level {
 typedef std::pair<qv_log_level, std::string> qv_result_info;
 
 std::string strOK = "SUCCESS:Verification Completed";
-std::string strCfgNeeded =
-    "quote verification passed, TCB is the latest, still need additional config";
-std::string strOutofDate =
-    "quote verification passed, TCB level not latest, pls upgrade platform patch";
-std::string strOutofDateCfgNeeded =
-    "quote verification passed, TCB level out of date, additional config needed at patch level";
-std::string strSWHdNeeded =
-    "software hardening required";
-std::string strInvalidSig =
-    "invalid signature over app report";
-std::string strRevoked =
-    "platform/attestation key is revoked";
-std::string strUnspecified =
-    "invalid input";
+std::string strCfgNeeded = "quote verification passed, TCB is the latest, still need additional config";
+std::string strOutofDate = "quote verification passed, TCB level not latest, pls upgrade platform patch";
+std::string strOutofDateCfgNeeded = "quote verification passed, TCB level out of date, additional config needed at patch level";
+std::string strSWHdNeeded = "software hardening required";
+std::string strInvalidSig = "invalid signature over app report";
+std::string strRevoked = "platform/attestation key is revoked";
+std::string strUnspecified = "invalid input";
 
 
 std::map<sgx_ql_qv_result_t, qv_result_info> qve_error_map = {
     { SGX_QL_QV_RESULT_OK, std::make_pair(L_OK, strOK)},
-    { SGX_QL_QV_RESULT_CONFIG_NEEDED, 
-        std::make_pair(L_WARNING, strCfgNeeded) },
-    { SGX_QL_QV_RESULT_OUT_OF_DATE, 
-        std::make_pair(L_WARNING, strOutofDate) },
-    { SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED,
-        std::make_pair(L_WARNING, strOutofDateCfgNeeded) },
-    { SGX_QL_QV_RESULT_SW_HARDENING_NEEDED,
-        std::make_pair(L_WARNING, strSWHdNeeded) },
-    { SGX_QL_QV_RESULT_INVALID_SIGNATURE,
-        std::make_pair(L_FATAL, strInvalidSig) },
+    { SGX_QL_QV_RESULT_CONFIG_NEEDED, std::make_pair(L_WARNING, strCfgNeeded) },
+    { SGX_QL_QV_RESULT_OUT_OF_DATE, std::make_pair(L_WARNING, strOutofDate) },
+    { SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED,std::make_pair(L_WARNING, strOutofDateCfgNeeded) },
+    { SGX_QL_QV_RESULT_SW_HARDENING_NEEDED,std::make_pair(L_WARNING, strSWHdNeeded) },
+    { SGX_QL_QV_RESULT_INVALID_SIGNATURE,std::make_pair(L_FATAL, strInvalidSig) },
     { SGX_QL_QV_RESULT_REVOKED, std::make_pair(L_FATAL, strRevoked) },
     { SGX_QL_QV_RESULT_UNSPECIFIED, std::make_pair(L_FATAL, strUnspecified) }
 };
 
+std::map<sgx_ql_qv_result_t, std::string> sgx_qv_error_messages = {
+    {SGX_QL_QV_RESULT_CONFIG_NEEDED, "Verification passed; additional SGX config may be needed"},
+    {SGX_QL_QV_RESULT_OUT_OF_DATE, "Quote good; TCB level out of date"},
+    {SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED, "Quote good; TCB out of date, additional config needed"},
+    {SGX_QL_QV_RESULT_INVALID_SIGNATURE, "Invalid signature over report"},
+    {SGX_QL_QV_RESULT_REVOKED, "Attestation key or platform revoked"},
+    {SGX_QL_QV_RESULT_UNSPECIFIED, "Verification failed due to input error"},
+    {SGX_QL_QV_RESULT_SW_HARDENING_NEEDED, "TCB up to date; SW hardening needed"},
+    {SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED, "TCB up to date; extra config and SW hardening needed"}
+};
 
 void p_sgx_tls_qv_err_msg(sgx_ql_qv_result_t error_code) {
     if (qve_error_map.find(error_code) != qve_error_map.end()) {
         switch (qve_error_map[error_code].first) {
             case L_WARNING:
-              PRINT("WARNING: 0x%x - %s\n", error_code, qve_error_map[error_code].second.c_str());
+              PRINT(LOG_WARN "0x%x - %s\n", error_code, qve_error_map[error_code].second.c_str());
               break;
             case L_FATAL:
-              PRINT("FATAL: 0x%x - %s\n", error_code, qve_error_map[error_code].second.c_str());
+              PRINT(LOG_FATAL "%x - %s\n", error_code, qve_error_map[error_code].second.c_str());
               break;
             default: // default is ok
               // but you need to check the collateral_expiration_status
               // refer to dcap sample qvl(quote_verification_result)
-              PRINT("unknown error level\n");
+              PRINT(LOG_WARN "Unknown error level\n");
               break;
         }
     } else {
-        PRINT("UNKNOWN error type(0x%x) and info, please check! \n", error_code);
+        // PRINT("UNKNOWN error type(0x%x) and info, please check! \n", error_code);
+        auto it = sgx_qv_error_messages.find(error_code);
+        if (it != sgx_qv_error_messages.end()) {
+            // エラーメッセージが見つかった場合
+            PRINT(LOG_WARN "%s " YEL "(0x%x)" CRESET "\n", it->second.c_str(), error_code);
+        } else {
+            // 未知のエラーコードの場合
+            PRINT(LOG_WARN "Unknown error code " YEL "(0x%x)" CRESET "\n", error_code);
+        }
     }
 }
 

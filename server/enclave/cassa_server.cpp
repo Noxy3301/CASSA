@@ -50,6 +50,7 @@
 
 // CASSA/Utilities 
 #include "cassa_common/transaction_balancer.hpp"
+#include "../../common/log_macros.h"
 
 // OpenSSL Utilities
 #include "../../common/openssl_utility_enclave.h"
@@ -108,7 +109,7 @@ int fcntl_set_nonblocking(int fd) {
     int retval;
     sgx_status_t status = u_fcntl_set_nonblocking(&retval, fd);
     if (status != SGX_SUCCESS) {
-        t_print(TLS_SERVER "SGX error while setting non-blocking: %d\n", status);
+        t_print(LOG_ERROR "SGX error while setting non-blocking: %d\n", status);
         return -1;
     }
     return retval;
@@ -121,7 +122,7 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
 
     // set up SSL session
     if (set_up_ssl_session(server_port, &ssl_server_ctx, &server_socket_fd) != 0) {
-        t_print(TLS_SERVER "Failed to set up SSL session\n");
+        t_print(LOG_ERROR "Failed to set up SSL session\n");
         return;
     }
 
@@ -130,13 +131,13 @@ void ecall_ssl_connection_acceptor(char* server_port, int keep_server_up) {
         // TODO: 終了条件を設定する？
         SSL *ssl_session = accept_client_connection(server_socket_fd, ssl_server_ctx);
         if (ssl_session == nullptr) {
-            t_print(TLS_SERVER "Error: accept_client_connection() failed\n");
+            t_print(LOG_ERROR "accept_client_connection() failed\n");
         } else {
             std::string session_id = ssl_session_handler.addSession(ssl_session);
-            t_print(TLS_SERVER "Accepted client connection (session_id: %s)\n", session_id.c_str());
+            t_print(LOG_INFO "Accepted client connection (session_id: %s)\n", session_id.c_str());
 
             // print active session
-            t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+            t_print(LOG_INFO "Active session: " BGRN "%lu" CRESET "\n", ssl_session_handler.ssl_sessions_.size());
         }
     }
 
@@ -159,14 +160,14 @@ void ecall_ssl_session_monitor() {
 
             // check if the session is alive
             if (!ssl_session || SSL_get_shutdown(ssl_session)) {
-                t_print(TLS_SERVER "Session ID: %s has closed\n", session_id.c_str());
+                t_print(LOG_INFO "Session ID: %s has closed\n", session_id.c_str());
                 // remove the session from the map and reset iterator
                 // NOTE: SSL_ERROR_NONE is normal termination
                 ssl_session_handler.removeSession(session_id, SSL_ERROR_NONE);
                 it = ssl_session_handler.ssl_sessions_.begin();
                 
                 // print active session
-                t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                t_print(LOG_INFO "Active session: " BGRN "%lu" CRESET "\n", ssl_session_handler.ssl_sessions_.size());
                 continue;
             }
 
@@ -177,8 +178,8 @@ void ecall_ssl_session_monitor() {
                 // receive data from the session
                 std::string received_data;
                 tls_read_from_session_peer(ssl_session, received_data);
-                t_print(TLS_SERVER "Received data from client: %s\n", received_data.c_str());
-                
+                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Received data from client: %s\n", session_id.c_str(), received_data.c_str());
+
                 // handle if reveiced data is command
                 std::string command, token_sec, token_nsec;
                 std::istringstream iss(received_data);
@@ -198,7 +199,7 @@ void ecall_ssl_session_monitor() {
                     ssl_session_handler.setTimestamp(session_id, timestamp_sec, timestamp_nsec);
 
                     // notify session ID to client
-                    t_print(TLS_SERVER "\033[32m" "Session ID: " "\033[0m" "%s\n", session_id.c_str());
+                    t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Session ID: " BGRN "%s" CRESET "\n", session_id.c_str(), session_id.c_str());
                     tls_write_to_session_peer(ssl_session, session_id);
                     it++;
                     continue;
@@ -216,7 +217,7 @@ void ecall_ssl_session_monitor() {
                 it = ssl_session_handler.ssl_sessions_.begin();
 
                 // print active session
-                t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                t_print(LOG_INFO "Active session: " BGRN "%lu" CRESET "\n", ssl_session_handler.ssl_sessions_.size());
                 continue;
             } else { // result <= 0
                 // remove the session from the map and reset iterator
@@ -226,7 +227,7 @@ void ecall_ssl_session_monitor() {
                 // print active session (except for SSL_ERROR_WANT_READ)
                 if (ssl_error_code != SSL_ERROR_WANT_READ) {
                     it = ssl_session_handler.ssl_sessions_.begin();
-                    t_print(TLS_SERVER "Active session: %lu\n", ssl_session_handler.ssl_sessions_.size());
+                    t_print(LOG_INFO "Active session: " BGRN "%lu" CRESET "\n", ssl_session_handler.ssl_sessions_.size());
                     continue;
                 }
             }
@@ -292,13 +293,13 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
     if (compare_timestamps(timestamp_sec, timestamp_nsec,
                            ssl_session_handler.getTimestampSec(client_session_id),
                            ssl_session_handler.getTimestampNsec(client_session_id)) <= 0) {
-        t_print(TLS_SERVER "Replay attack detected or old timestamp received.\n");
+        t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Replay attack detected or old timestamp received.\n", session_id.c_str());
         return -1;
     }
 
     // Update timestamp in SSL session
     ssl_session_handler.setTimestamp(client_session_id, timestamp_sec, timestamp_nsec);
-    t_print(DEBUG TLS_SERVER "client_session_id: %s, timestamp_sec: %ld, timestamp_nsec: %ld\n", client_session_id.c_str(), timestamp_sec, timestamp_nsec); // for debug
+    t_print(LOG_DEBUG "client_session_id: %s, timestamp_sec: %ld, timestamp_nsec: %ld\n", client_session_id.c_str(), timestamp_sec, timestamp_nsec); // for debug
 
     // retrieve operations
     const auto &transactions_json = json["transaction"];
@@ -317,7 +318,7 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
         } else if (operation_str == "SCAN") {
             op_type = OpType::SCAN;
         } else {
-            t_print(TLS_SERVER "Unknown operation: %s\n", operation_str.c_str());
+            t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Unknown operation: %s\n", session_id.c_str(), operation_str.c_str());
             return -2;
         }
 
@@ -383,14 +384,14 @@ RETRY:
             case OpType::INSERT:
                 status = trans.insert((*itr).key_, (*itr).value_);
                 if (status == Status::WARN_ALREADY_EXISTS) {
-                    t_print(DEBUG TLS_SERVER "Key: %s is already exists\n", (*itr).key_.c_str());
+                    t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Key: %s is already exists\n", trans.session_id_.c_str(), (*itr).key_.c_str());
                     error_message_content += "Key: " + (*itr).key_ + " is already exists\n";
                 }
                 break;
             case OpType::READ:
                 status = trans.read((*itr).key_, read_value);
                 if (status == Status::WARN_NOT_FOUND) {
-                    t_print(DEBUG TLS_SERVER "Key: %s is not found\n", (*itr).key_.c_str());
+                    t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Key: %s is not found\n", trans.session_id_.c_str(), (*itr).key_.c_str());
                     error_message_content += "Key: " + (*itr).key_ + " is not found\n";
                 } else if (status == Status::OK) {
                     trans.nid_.read_key_value_pairs.emplace_back((*itr).key_, read_value);
@@ -399,7 +400,7 @@ RETRY:
             case OpType::WRITE:
                 status = trans.write((*itr).key_, (*itr).value_);
                 if (status == Status::WARN_NOT_FOUND) {
-                    t_print(DEBUG TLS_SERVER "Key: %s is not found\n", (*itr).key_.c_str());
+                    t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Key: %s is not found\n", trans.session_id_.c_str(), (*itr).key_.c_str());
                     error_message_content += "Key: " + (*itr).key_ + " is not found\n";
                 }
                 break;
@@ -411,11 +412,10 @@ RETRY:
                                     (*itr).right_key_, (*itr).r_exclusive_,
                                     scan_result);
                 if (status == Status::ERROR_CONCURRENT_WRITE_OR_DELETE) {
-                    t_print(DEBUG TLS_SERVER "Concurrent write or delete detected\n");
+                    t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Concurrent write or delete detected\n", trans.session_id_.c_str());
                 } else if (status == Status::OK) {
                     for (auto &scan_result_pair : scan_result) {
                         trans.nid_.read_key_value_pairs.emplace_back(scan_result_pair);
-                        t_print(DEBUG TLS_SERVER "Key: %s, Value: %s\n", scan_result_pair.first.c_str(), scan_result_pair.second.c_str());
                     }
                 }
                 break;
@@ -436,7 +436,7 @@ RETRY:
 
     if (trans.validationPhase()) {
         trans.writePhase();
-        t_print(DEBUG TLS_SERVER "transaction has been committed\n");
+        t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Transaction has been committed\n", trans.session_id_.c_str());
         return 0;
     } else {
         trans.abort();
@@ -455,7 +455,7 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
     logger->add_tx_executor(trans);
     trans.epoch_timer_start = rdtscp();
 
-    t_print(TLS_SERVER "wID: %d | Worker thread has started\n", worker_thid);
+    t_print(LOG_DEBUG "wID: %d | Worker thread has started\n", worker_thid);
 
     // クライアントからのデータ受信と処理
     std::string json_str;
@@ -481,7 +481,7 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         std::string json_message_dump;
         bool send_responce = false;
         if (result == 0 && trans.write_set_.size() == 0) {
-            t_print(DEBUG TLS_SERVER "read-only transaction, read items: %d\n", trans.nid_.read_key_value_pairs.size());
+            t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Read-only transaction, read items: %d\n", trans.session_id_, trans.nid_.read_key_value_pairs.size());
             json_message_dump = create_message(result, error_message_content, trans.nid_.read_key_value_pairs).dump();
             send_responce = true;
         } else if (result != 0) {
@@ -497,7 +497,7 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
                 std::lock_guard<std::mutex> lock(*session->ssl_session_mutex);
                 tls_write_to_session_peer(ssl, json_message_dump);
             } else {
-                t_print(DEBUG TLS_SERVER "session == nullptr, skipped\n");
+                t_print(LOG_WARN "session == nullptr, skipped\n");
             }
         }
     }
@@ -512,7 +512,7 @@ void ecall_execute_logger_task(size_t logger_thid) {
     notifier.add_logger(&logger);
     std::atomic<Logger*> *logp = &(logs[logger_thid]);
     logp->store(&logger);
-    t_print(TLS_SERVER "lID: %d | Logger thread has started\n", logger_thid);
+    t_print(LOG_DEBUG "lID: %d | Logger thread has started\n", logger_thid);
     logger.worker();
     return;
 }

@@ -96,7 +96,7 @@ void p_sgx_tls_qv_err_msg(sgx_ql_qv_result_t error_code) {
               PRINT(LOG_WARN "0x%x - %s\n", error_code, qve_error_map[error_code].second.c_str());
               break;
             case L_FATAL:
-              PRINT(LOG_FATAL "%x - %s\n", error_code, qve_error_map[error_code].second.c_str());
+              PRINT(LOG_ERROR "%x - %s\n", error_code, qve_error_map[error_code].second.c_str());
               break;
             default: // default is ok
               // but you need to check the collateral_expiration_status

@@ -6,7 +6,7 @@
 #include <iomanip>
 
 #include "common.h"
-#include "ansi_color_code.h"
+#include "log_macros.h"
 
 // SGX Quoteを含む証明書拡張のOID
 // Referenced from linux-sgx/sdk/ttls/cert_header.h
@@ -17,8 +17,7 @@
 int read_mrsigner_from_file(const char* filename, unsigned char* mrsigner, size_t mrsigner_size) {
     FILE* file = fopen(filename, "rb");
     if (!file) {
-        std::cout << BRED << "[ ERROR    ] " << CRESET
-                  << "Failed to open file: " << filename << std::endl; 
+        std::cout << LOG_ERROR "Failed to open file: " << filename << std::endl; 
         return -1;
     }
 
@@ -26,8 +25,7 @@ int read_mrsigner_from_file(const char* filename, unsigned char* mrsigner, size_
     fclose(file);
 
     if (read_bytes != mrsigner_size) {
-        std::cout << BRED << "[ ERROR    ] " << CRESET
-                  << "Failed to read full MRSIGNER from file, expected " << mrsigner_size << " bytes, read " << read_bytes << " bytes" << std::endl;
+        std::cout << LOG_ERROR "Failed to read full MRSIGNER from file, expected " << mrsigner_size << " bytes, read " << read_bytes << " bytes" << std::endl;
         return -1;
     }
 
@@ -40,42 +38,40 @@ bool extract_mrsigner_from_sgx_quote(const unsigned char* quote, int quote_len) 
     const int mrsigner_size = 32; // MRSIGNERのサイズ
 
     if (quote_len < (mrsigner_offset + mrsigner_size)) {
-        std::cout << BRED << "[ ERROR    ] " << CRESET
-                  << "SGX Quote data is too short to contain MRSIGNER" << std::endl;
+        std::cout << LOG_ERROR "SGX Quote data is too short to contain MRSIGNER" << std::endl;
         return false;
     }
 
     // ファイルからMRSIGNERを読み込む
     unsigned char file_mrsigner[mrsigner_size];
     if (read_mrsigner_from_file(MRSIGNER_FILEPATH, file_mrsigner, mrsigner_size) != 0) {
-        std::cout << BRED << "[ ERROR    ] " << CRESET
-                  << "Failed to read MRSIGNER from: " << MRSIGNER_FILEPATH << std::endl;
+        std::cout << LOG_ERROR "Failed to read MRSIGNER from: " << MRSIGNER_FILEPATH << std::endl;
         return false;
     }
 
     // QuoteからMRSIGNERを抽出
     const unsigned char* quote_mrsigner = quote + mrsigner_offset;
 
-    std::cout << "MRSIGNER from SGX Quote:" << std::endl;
+    std::cout << LOG_INFO << "MRSIGNER from SGX Quote:" << std::endl;
     for (int i = 0; i < mrsigner_size; i++) {
+        if (i % 16 == 0) std::cout << LOG_SPACE;
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(quote_mrsigner[i]) << " ";
         if ((i + 1) % 16 == 0) std::cout << std::endl;
     }
-    std::cout << std::endl;
 
-    std::cout << "MRSIGNER from " << MRSIGNER_FILEPATH << ":" << std::endl;
+    std::cout << LOG_INFO << "MRSIGNER from " << MRSIGNER_FILEPATH << ":" << std::endl;
     for (int i = 0; i < mrsigner_size; i++) {
+        if (i % 16 == 0) std::cout << LOG_SPACE;
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(file_mrsigner[i]) << " ";
         if ((i + 1) % 16 == 0) std::cout << std::endl;
     }
-    std::cout << std::endl;
 
     // MRSIGNERの比較
     if (memcmp(quote_mrsigner, file_mrsigner, mrsigner_size) == 0) {
-        std::cout << "Result: " << BGRN << "MRSIGNER match" << CRESET << std::endl;
+        std::cout << LOG_INFO "Result: " << BGRN << "MRSIGNER match" << CRESET << std::endl;
         return true;
     } else {
-        std::cout << "Result: " << BRED << "MRSIGNER does not match" << CRESET << std::endl;
+        std::cout << LOG_ERROR "Result: " << BRED << "MRSIGNER does not match" << CRESET << std::endl;
         return false;
     }
 }
@@ -89,21 +85,21 @@ bool verify_mrsigner(unsigned char* der, int der_len) {
         const unsigned char* p = der;
         cert = d2i_X509(NULL, &p, der_len);
         if (!cert) {
-            printf("Failed to parse the certificate\n");
+            std::cout << LOG_ERROR "Failed to parse the certificate" << std::endl;
             break;
         }
 
         // ASN1_OBJECTをOID文字列から作成
         sgx_quote_oid_obj = OBJ_txt2obj(SGX_QUOTE_EXTENSION_OID, 1);
         if (!sgx_quote_oid_obj) {
-            printf("Failed to create ASN1_OBJECT from OID\n");
+            std::cout << LOG_ERROR "Failed to create ASN1_OBJECT from OID" << std::endl;
             break;
         }
 
         // 証明書から拡張を検索
         int loc = X509_get_ext_by_OBJ(cert, sgx_quote_oid_obj, -1);
         if (loc < 0) {
-            printf("SGX Quote extension not found in the certificate\n");
+            std::cout << LOG_ERROR "SGX Quote extension not found in the certificate" << std::endl;
             break;
         }
 

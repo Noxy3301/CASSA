@@ -43,6 +43,8 @@
 
 #include "util/logger_affinity.hpp"
 
+#include "../../common/log_macros.h"
+
 #define LOOP_OPTION "-server-in-loop"
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t server_global_eid = 0;
@@ -88,7 +90,7 @@ void print_error_message(sgx_status_t ret) {
     }
 
     if (idx == ttl)
-        printf("Error code is 0x%X. Please refer to the \"Intel SGX SDK Developer Reference\" for more details.\n", ret);
+        printf(LOG_ERROR "Error code is 0x%X. Please refer to the \"Intel SGX SDK Developer Reference\" for more details.\n", ret);
 }
 
 int ocall_read_file(const uint8_t *filename, size_t filename_size, uint8_t *data, size_t offset, size_t data_size) {
@@ -96,21 +98,21 @@ int ocall_read_file(const uint8_t *filename, size_t filename_size, uint8_t *data
     std::string filename_str(reinterpret_cast<const char*>(filename), filename_size);
     std::ifstream file(filename_str, std::ios::in | std::ios::binary);
     if (!file) {
-        printf("Host: Unable to open file: %s\n", filename_str.c_str());
+        printf(LOG_ERROR "Unable to open file: %s\n", filename_str.c_str());
         return -1;  // Open failed
     }
 
     // Seek to the specified position
     file.seekg(offset, std::ios::beg);
     if (!file) {
-        printf("Host: Error seeking to position %zu in file: %s\n", offset, filename_str.c_str());
+        printf(LOG_ERROR "Error seeking to position %zu in file: %s\n", offset, filename_str.c_str());
         return -2; // Seek failed
     }
 
     // Read data from file
     file.read(reinterpret_cast<char*>(data), data_size);
     if (!file) {
-        printf("Host: Error reading data from file: %s\n", filename_str.c_str());
+        printf(LOG_ERROR "Error reading data from file: %s\n", filename_str.c_str());
         return -3; // Read failed
     }
 
@@ -126,7 +128,7 @@ size_t ocall_get_file_size(const uint8_t *filename, size_t filename_size) {
     // Open file and get file size
     std::ifstream file(file_name_str, std::ifstream::ate | std::ifstream::binary);
     if (!file.is_open()) {
-        printf("Host: Unable to open file: %s\n", file_name_str.c_str());
+        printf(LOG_ERROR "Unable to open file: %s\n", file_name_str.c_str());
         return 0;
     }
 
@@ -138,14 +140,14 @@ int ocall_save_logfile(size_t thid, const uint8_t* sealed_data, const size_t sea
     std::fstream file("log/log" + std::to_string(thid) + ".seal",
                       std::ios::in | std::ios::out | std::ios::binary | std::ios::app);
     if (!file) {
-        printf("Host: Unable to open file: log/log%zu.seal\n", thid);
+        printf(LOG_ERROR "Unable to open file: log/log%zu.seal\n", thid);
         return -1;
     }
 
     // append log
     file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
     file.close();
-    printf("Host: Logfile saved\n");
+    printf(LOG_INFO "Logfile saved\n");
     return 0;
 }
 
@@ -154,7 +156,7 @@ int ocall_save_pepochfile(const uint8_t* sealed_data, const size_t sealed_size) 
     std::fstream file("log/pepoch.seal",
                       std::ios::in | std::ios::out | std::ios::binary);
     if (!file) {
-        printf("Host: Unable to open file: log/pepoch.seal\n");
+        printf(LOG_ERROR "Unable to open file: log/pepoch.seal\n");
         return -1;
     }
 
@@ -170,7 +172,7 @@ int ocall_save_tail_log_hash(size_t thid, const uint8_t* sealed_data, const size
     std::fstream file("log/pepoch.seal",
                       std::ios::in | std::ios::out | std::ios::binary);
     if (!file) {
-        printf("Host: Unable to open file: log/pepoch.seal\n");
+        printf(LOG_ERROR "Unable to open file: log/pepoch.seal\n");
         return -1;
     }
     // Seek to the corresponding position and write tail log hash
@@ -185,7 +187,7 @@ sgx_status_t initialize_enclave(const char *enclave_path) {
 
     // the 1st parameter should be SERVER_ENCLAVE_FILENAME
     ret = sgx_create_enclave(enclave_path, SGX_DEBUG_FLAG, NULL, NULL, &server_global_eid, NULL);
-    printf("- [Host] Enclave library: %s\n", enclave_path);
+    printf(LOG_SPACE "Enclave library: " BGRN "%s" CRESET "\n", enclave_path);
 
     if (ret != SGX_SUCCESS){
         print_error_message(ret);
@@ -225,7 +227,7 @@ void start_ssl_connection_acceptor_task(char* server_port, int keep_server_up) {
 
 void terminate_enclave() {
     sgx_destroy_enclave(server_global_eid);
-    printf("Host: Enclave successfully terminated.\n");
+    printf(LOG_INFO "Enclave successfully terminated.\n");
 }
 
 bool is_directory_exist(const std::string& path) {
@@ -244,7 +246,7 @@ bool is_directory_exist(const std::string& path) {
 bool create_file(const std::string &filename) {
     std::ofstream file(filename);
     if (!file) {
-        printf("Error: Unable to create file %s\n", filename.c_str());
+        printf(LOG_ERROR "Unable to create file %s\n", filename.c_str());
         return false;
     }
     return true;
@@ -255,7 +257,7 @@ void create_log_files(size_t number_of_log_files) {
 
     // make directory
     if (mkdir(dir_name.c_str(), 0777) == -1) {
-        printf("Error: Unable to create directory %s\n", dir_name.c_str());
+        printf(LOG_ERROR "Unable to create directory %s\n", dir_name.c_str());
         return;
     }
 
@@ -290,17 +292,17 @@ int main(int argc, const char* argv[]) {
     /* Check argument count */
     if (argc == 4) {
         if (strcmp(argv[3], LOOP_OPTION) != 0) {
-            printf("Usage: %s TLS_SERVER_ENCLAVE_PATH -port:<port> [%s]\n", argv[0], LOOP_OPTION);
+            printf(LOG_INFO "Usage: %s TLS_SERVER_ENCLAVE_PATH -port:<port> [%s]\n", argv[0], LOOP_OPTION);
             return 1;
         } else {
             keep_server_up = 1;
         }
     } else if (argc != 3) {
-        printf("Usage: %s TLS_SERVER_ENCLAVE_PATH -port:<port> [%s]\n", argv[0], LOOP_OPTION);
+        printf(LOG_INFO "Usage: %s TLS_SERVER_ENCLAVE_PATH -port:<port> [%s]\n", argv[0], LOOP_OPTION);
         return 1;
     }
 
-    printf("\n[Starting TLS server]\n");
+    printf(LOG_INFO "Starting CASSA server ...\n");
     // read port parameter
     char* option = (char*)"-port:";
     size_t param_len = 0;
@@ -309,36 +311,36 @@ int main(int argc, const char* argv[]) {
         server_port = (char*)(argv[2] + param_len);
     } else {
         fprintf(stderr, "Unknown option %s\n", argv[2]);
-        printf("Usage: %s TLS_SERVER_ENCLAVE_PATH -port:<port> [%s]\n", argv[0], LOOP_OPTION);
+        printf(LOG_INFO "Usage: %s TLS_SERVER_ENCLAVE_PATH -port:<port> [%s]\n", argv[0], LOOP_OPTION);
         return 1;
     }
-    printf("- [Host] Server Port: %s\n", server_port);
+    printf(LOG_SPACE "Server Port: " BGRN "%s" CRESET "\n", server_port);
 
-    printf("\n[Creating TLS server enclave]\n");
+    printf(LOG_INFO "Creating enclave\n");
     result = initialize_enclave(argv[1]);
     if (result != SGX_SUCCESS) {
-        printf("- [Host] Status: Failed\n");
+        printf(LOG_ERROR "Status: " BRED "Failed" CRESET "\n");
         goto exit;
     }
 
     if (is_directory_exist("log") == false) {
         // If the log directory does not exist, create the directory and the file
-        printf("- [Host] Log directory does not exist, creating new directory...\n");
+        printf(LOG_INFO "Log directory does not exist, creating new directory...\n");
         create_log_files(logger_num);
     } else {
         // If the log file exists, perform recovery
-        printf("- [Host] Log directory exists, performing recovery...\n");
+        printf(LOG_INFO "Log directory exists, performing recovery...\n");
         ecall_perform_recovery(server_global_eid, &ocall_ret);
         if (result != SGX_SUCCESS || ocall_ret != 0) {
-            printf("- [Host] Recovery failed\n");
+            printf(LOG_ERROR "Recovery failed\n");
             goto exit;
         }
     }
 
-    printf("- [Host] Initialize CASSA settings\n");
+    printf(LOG_INFO "Initialize CASSA settings\n");
     ecall_initialize_global_variables(server_global_eid, worker_num, logger_num);
 
-    printf("- [Host] Launching worker/logger thread\n");
+    printf(LOG_INFO "Launching worker/logger thread\n");
     for (auto itr = affin.nodes_.begin(); itr != affin.nodes_.end(); itr++, l_thid++) {
         logger_threads.emplace_back(start_logger_task, l_thid);
         for (auto wcpu = itr->worker_cpu_.begin(); wcpu != itr->worker_cpu_.end(); wcpu++, w_thid++) {
@@ -346,13 +348,13 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    printf("- [Host] Launching SSL connection acceptor thread\n");
+    printf(LOG_INFO "Launching SSL connection acceptor thread\n");
     ssl_connection_acceptor_thread = std::thread(start_ssl_connection_acceptor_task, server_port, keep_server_up);
 
     result = ecall_ssl_session_monitor(server_global_eid);
     if (result != SGX_SUCCESS) {
         print_error_message(result);
-        printf("Host: ssl_session_monitor failed\n");
+        printf(LOG_ERROR "ssl_session_monitor failed\n");
         goto exit;
     }
 
@@ -363,9 +365,9 @@ exit:
     ssl_connection_acceptor_thread.join();
 
     // printf("Host: Terminating enclaves\n");
-    printf("\n[Terminating enclaves]\n");
+    printf(LOG_INFO "Terminating enclaves\n");
     terminate_enclave();
 
-    printf("- [Host] %s \n", (ret == 0) ? "succeeded" : "failed");
+    printf(LOG_INFO "%s \n", (ret == 0) ? BGRN "succeeded" CRESET : BRED "failed" CRESET);
     return ret;
 }

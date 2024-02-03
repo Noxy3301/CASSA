@@ -34,6 +34,7 @@
 #include <string.h>
 #include "utility.h"
 #include "common.h"
+#include "log_macros.h"
 
 #ifdef CLIENT_USE_QVL
 #include "verify_mrsigner.h"
@@ -52,10 +53,10 @@ int verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
     X509* crt = nullptr;
     int err = X509_V_ERR_UNSPECIFIED;
 
-    PRINT(TLS_CLIENT "Verifying Certificate (callback called with  preverify_ok = %d)\n", preverify_ok);
+    PRINT(LOG_DEBUG "Verifying Certificate (callback called with  preverify_ok = %d)\n", preverify_ok);
     crt = X509_STORE_CTX_get_current_cert(ctx);
     if (crt == nullptr) {
-        PRINT(TLS_CLIENT "Error: failed to retrieve certificate\n");
+        PRINT(LOG_ERROR "Failed to retrieve certificate\n");
         goto done;
     }
 
@@ -63,7 +64,7 @@ int verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
         err = X509_STORE_CTX_get_error(ctx);
         if (err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT) {
             // A self-signed certificate is expected, return 1 to continue the verification process
-            PRINT(TLS_CLIENT "Detected self-signed certificate\n");
+            PRINT(LOG_DEBUG "Detected self-signed certificate\n");
             ret = 1;
             goto done;
         }
@@ -72,19 +73,19 @@ int verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
     // convert a cert into a buffer in DER format
     der_len = i2d_X509(crt, nullptr);
     if (der_len <= 0) {
-        PRINT(TLS_CLIENT "Error: i2d_X509 failed(der_len = %d)\n", der_len);
+        PRINT(LOG_ERROR "i2d_X509 failed(der_len = %d)\n", der_len);
         goto done;
     }
 
     buff = (unsigned char*)malloc(der_len);
     if (buff == nullptr) {
-        PRINT(TLS_CLIENT "Error: malloc failed (der_len = %d)\n", der_len);
+        PRINT(LOG_ERROR "malloc failed (der_len = %d)\n", der_len);
         goto done;
     }
     der = buff;
     der_len = i2d_X509(crt, &buff);
     if (der_len < 0) {
-        PRINT(TLS_CLIENT "Error: i2d_X509 failed(der_len = %d)\n", der_len);
+        PRINT(LOG_ERROR "i2d_X509 failed(der_len = %d)\n", der_len);
         goto done;
     }
 
@@ -92,7 +93,7 @@ int verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
     // call to i2d_X509(), buff is pointing to the "end" of the data buffer
     // pointed by buff That is, buff = buff + der_len;
     PRINT(
-        TLS_CLIENT "der=%p buff=%p buff moved by %d offset der_len=%d\n",
+        LOG_DEBUG "der=%p buff=%p buff moved by %d offset der_len=%d\n",
         der,
         buff,
         (int)(buff - der),
@@ -108,15 +109,14 @@ int verify_callback(int preverify_ok, X509_STORE_CTX* ctx) {
 
    // result != SGX_QL_SUCCESS means critical error
     if (result != SGX_QL_SUCCESS) {
-        PRINT(TLS_CLIENT "Error: Quote Verification Failed with result(%x) - \n", result);
+        PRINT(LOG_ERROR "Quote Verification Failed with result(%x) - \n", result);
         p_sgx_tls_qe_err_msg(result);
         goto done;
     } else {
         // We only print the warning info in this sample
         // In your product, we suggest you to check qv_result and supplemental data, define your own verification policy
         if (qv_result != SGX_QL_QV_RESULT_OK) {
-            PRINT(TLS_CLIENT "Certificate Verification: Passed (with Non-critical Errors)\n");
-            PRINT("You can define your own verification policy based on below info:\n");
+            PRINT(LOG_INFO "Certificate Verification: " BGRN "Passed" CRESET " (with Non-critical Errors)\n");
             p_sgx_tls_qv_err_msg(qv_result);
         }
 
@@ -140,7 +140,7 @@ done:
         free(der);
 
     if (err != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT) {
-        PRINT(TLS_CLIENT "Verifying SGX certificate extensions ... %s\n", ret ? "succeeded" : "failed");
+        PRINT(LOG_INFO "Verifying SGX certificate extensions ... %s\n", ret ? BGRN "succeeded" CRESET : BRED "failed" CRESET);
     }
     return ret;
 }

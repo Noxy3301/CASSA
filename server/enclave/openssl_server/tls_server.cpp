@@ -36,6 +36,7 @@
 
 #include "include/tls_server.h"
 #include "../../../common/openssl_utility_enclave.h"
+#include "../../../common/log_macros.h"
 
 #include "../cassa_server.h"
 
@@ -55,28 +56,28 @@ int create_listener_socket(int port, int& server_socket) {
 
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket < 0) {
-        t_print(TLS_SERVER "socket creation failed\n");
+        t_print(LOG_ERROR "Socket creation failed\n");
         goto exit;
     }
 
     if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (const void*)&reuse, sizeof(reuse)) < 0) {
-        t_print(TLS_SERVER "setsocket failed \n");
+        t_print(LOG_ERROR "Setsocket failed \n");
         goto exit;
     }
 
     // set non-blocking
     if (fcntl_set_nonblocking(server_socket) < 0) {
-        t_print(TLS_SERVER "set_non_blocking failed \n");
+        t_print(LOG_ERROR "Set_non_blocking failed \n");
         goto exit;
     }
 
     if (bind(server_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        t_print(TLS_SERVER "Unable to bind socket to the port\n");
+        t_print(LOG_ERROR "Unable to bind socket to the port\n");
         goto exit;
     }
 
     if (listen(server_socket, 20) < 0) {
-        t_print(TLS_SERVER "Unable to open socket for listening\n");
+        t_print(LOG_ERROR "Unable to open socket for listening\n");
         goto exit;
     }
     ret = 0;
@@ -90,7 +91,7 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
     uint len = sizeof(addr);
     int client_socket_fd;
 
-    t_print("\n" TLS_SERVER "waiting for client connection ...\n");
+    t_print(LOG_INFO "Waiting for client connection ...\n");
     while (true) {
         client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&addr, &len);
         if (client_socket_fd >= 0) break;
@@ -99,7 +100,7 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
     // create a new SSL structure for a connection
     SSL* ssl_session = SSL_new(ssl_server_ctx);
     if (ssl_session == nullptr) {
-        t_print(TLS_SERVER "Unable to create a new SSL connection state object\n");
+        t_print(LOG_ERROR "Unable to create a new SSL connection state object\n");
         ocall_close(&ret, client_socket_fd);
         return nullptr;
     }
@@ -109,7 +110,7 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
     // wait for a TLS/SSL client to initiate a TLS/SSL handshake
     int test_error = SSL_accept(ssl_session);
     if (test_error <= 0) {
-        t_print(TLS_SERVER "SSL handshake failed, error(%d)(%d)\n",
+        t_print(LOG_ERROR "SSL handshake failed, error(%d)(%d)\n",
                 test_error, SSL_get_error(ssl_session, test_error));
         SSL_free(ssl_session);
         ocall_close(&ret, client_socket_fd);
@@ -118,7 +119,7 @@ SSL *accept_client_connection(int server_socket_fd, SSL_CTX* ssl_server_ctx) {
 
     // Set the new socket to non-blocking mode
     if (fcntl_set_nonblocking(client_socket_fd) < 0) {
-        t_print(TLS_SERVER "Failed to set non-blocking mode for client socket\n");
+        t_print(LOG_ERROR "Failed to set non-blocking mode for client socket\n");
         SSL_free(ssl_session);
         ocall_close(&ret, client_socket_fd);
         return nullptr;
@@ -135,24 +136,24 @@ int set_up_ssl_session(char* server_port, SSL_CTX** out_ssl_server_ctx, int* out
     SSL_CTX* ssl_server_ctx = nullptr;
 
     if ((ssl_server_ctx = SSL_CTX_new(TLS_server_method())) == nullptr) {
-        t_print(TLS_SERVER "unable to create a new SSL context\n");
+        t_print(LOG_ERROR "Unable to create a new SSL context\n");
         goto exit;
     }
 
     if (initalize_ssl_context(ssl_confctx, ssl_server_ctx) != SGX_SUCCESS) {
-        t_print(TLS_SERVER "unable to create a initialize SSL context\n ");
+        t_print(LOG_ERROR "Unable to create a initialize SSL context\n ");
         goto exit;
     }
 
     SSL_CTX_set_verify(ssl_server_ctx, SSL_VERIFY_PEER, &verify_callback);
-    t_print(TLS_SERVER "Load TLS certificate and key\n");
+    t_print(LOG_DEBUG "Load TLS certificate and key\n");
     if (load_tls_certificates_and_keys(ssl_server_ctx, certificate, pkey) != 0) {
-        t_print(TLS_SERVER " unable to load certificate and private key on the server\n ");
+        t_print(LOG_ERROR "Unable to load certificate and private key on the server\n ");
         goto exit;
     }
     
     if (create_listener_socket(server_port_number, *out_server_socket_fd) != 0) {
-        t_print(TLS_SERVER " unable to create listener socket on the server\n ");
+        t_print(LOG_ERROR "Unable to create listener socket on the server\n ");
         goto exit;
     }
 

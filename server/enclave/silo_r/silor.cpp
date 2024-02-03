@@ -29,7 +29,7 @@ int RecoveryManager::execute_recovery() {
         log_archive.log_file_name_ = "log/log" + std::to_string(i) + ".seal";
         log_archive.last_log_hash_ = last_log_hash;
         if (!is_valid_hex_string(log_archive.last_log_hash_)) {
-            t_print(LOG_INFO "Last log hash not found for %s\n", log_archive.log_file_name_.c_str());
+            // t_print(LOG_WARN "Last log hash not found for %s\n", log_archive.log_file_name_.c_str());
             log_archive.is_last_log_hash_matched = true;
             log_archive.is_all_data_read_ = true;
         }
@@ -127,7 +127,7 @@ int RecoveryManager::execute_recovery() {
 
     // Set the global epoch to the durable epoch after recovery completion
     GlobalEpoch = this->durable_epoch_;
-    t_print(BGRN "\nRecovery finished. GlobalEpoch: %lu, %lu operations processed.\n" CRESET, GlobalEpoch, this->processed_operation_num_);
+    t_print("\n" LOG_INFO BGRN "Recovery finished. GlobalEpoch: %lu, %lu operations successfully replayed.\n" CRESET, GlobalEpoch, this->processed_operation_num_);
 
     return 0;
 }

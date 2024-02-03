@@ -25,6 +25,7 @@
 */
 
 #include "openssl_utility_enclave.h"
+#include "log_macros.h"
 
 sgx_status_t generate_certificate_and_pkey(X509*& certificate, EVP_PKEY*& pkey) {
     quote3_error_t qresult = SGX_QL_SUCCESS;
@@ -45,20 +46,20 @@ sgx_status_t generate_certificate_and_pkey(X509*& certificate, EVP_PKEY*& pkey) 
         &private_key_buffer,
         &private_key_buffer_size);
     if (result != SGX_SUCCESS) {
-        PRINT("Error: failed to generate RSA key pair\n");
+        PRINT(LOG_ERROR "Failed to generate RSA key pair\n");
         goto done;
     } else {
         if (key_type) {
-            PRINT("- Successfully generated EC(P-384) key pair\n");
+            PRINT(LOG_INFO "Successfully generated EC(P-384) key pair\n");
         } else {
-            PRINT("- Successfully generated RSA(3072) key pair\n");
+            PRINT(LOG_INFO "Successfully generated RSA(3072) key pair\n");
         }
     }
 
-    PRINT("- Public_key_buf_size: %ld bytes\n", public_key_buffer_size);
-    PRINT("%s", public_key_buffer);
-    PRINT("- Private_key_buf_size: %ld bytes\n", private_key_buffer_size);
-    PRINT("%s", private_key_buffer);
+    PRINT(LOG_DEBUG "Public Key Size: %ld bytes\n", public_key_buffer_size);
+    // PRINT("%s", public_key_buffer);
+    PRINT(LOG_DEBUG "Private Key Size: %ld bytes\n", private_key_buffer_size);
+    // PRINT("%s", private_key_buffer);
 
     // SGXAPI: Generate self-signed X.509 certificate with embedded Intel SGX ECDSA quote
     qresult = tee_get_certificate_with_evidence(
@@ -72,12 +73,12 @@ sgx_status_t generate_certificate_and_pkey(X509*& certificate, EVP_PKEY*& pkey) 
 
     if (qresult != SGX_QL_SUCCESS || output_certificate == nullptr) {
         if (output_certificate == nullptr) {
-            PRINT("Error: null certificate\n");
+            PRINT(LOG_ERROR"Null certificate\n");
         }
         p_sgx_tls_qe_err_msg(qresult);
         goto done;
     } else {
-        PRINT("Successfully generated self-signed X.509 certificate with embedded Intel SGX ECDSA quote\n");
+        PRINT(LOG_INFO "Successfully generated self-signed X.509 certificate with embedded Intel SGX ECDSA quote\n");
     }
 
     // temporary buffer required as if d2i_x509 call is successful
@@ -88,16 +89,16 @@ sgx_status_t generate_certificate_and_pkey(X509*& certificate, EVP_PKEY*& pkey) 
     certificate_buffer_ptr = output_certificate;
 
     if ((certificate = d2i_X509(nullptr, &certificate_buffer_ptr, (long)output_certificate_size)) == nullptr) {
-        PRINT("Error: Failed to convert DER format certificate to X509 structure\n");
+        PRINT(LOG_ERROR "Failed to convert DER format certificate to X509 structure\n");
         goto done;
     }
     mem = BIO_new_mem_buf((void*)private_key_buffer, -1);
     if (!mem) {
-        PRINT("Error: Failed to convert private key buf into BIO_mem\n");
+        PRINT(LOG_ERROR "Failed to convert private key buf into BIO_mem\n");
         goto done;
     }
     if ((pkey = PEM_read_bio_PrivateKey(mem, nullptr, 0, nullptr)) == nullptr) {
-        PRINT("Error: Failed to convert private key buffer into EVP_KEY format\n");
+        PRINT(LOG_ERROR "Failed to convert private key buffer into EVP_KEY format\n");
         goto done;
     }
 
@@ -121,28 +122,28 @@ sgx_status_t load_tls_certificates_and_keys(SSL_CTX* ctx, X509*& certificate, EV
     sgx_status_t result = SGX_ERROR_UNEXPECTED;
 
     if (generate_certificate_and_pkey(certificate, pkey) != SGX_SUCCESS) {
-        PRINT("Cannot generate certificate and pkey\n");
+        PRINT(LOG_ERROR "Cannot generate certificate and pkey\n");
         goto exit;
     }
 
     if (certificate == nullptr) {
-        PRINT("null cert\n");
+        PRINT(LOG_ERROR "Null cert\n");
         goto exit;
     }
 
     if (!SSL_CTX_use_certificate(ctx, certificate)) {
-        PRINT("Cannot load certificate on the server\n");
+        PRINT(LOG_ERROR "Cannot load certificate on the server\n");
         goto exit;
     }
 
     if (!SSL_CTX_use_PrivateKey(ctx, pkey)) {
-        PRINT("Cannot load private key on the server\n");
+        PRINT(LOG_ERROR "Cannot load private key on the server\n");
         goto exit;
     }
 
     /* verify private key */
     if (!SSL_CTX_check_private_key(ctx)) {
-        PRINT("Private key does not match the public certificate\n");
+        PRINT(LOG_ERROR "Private key does not match the public certificate\n");
         goto exit;
     }
     result = SGX_SUCCESS;

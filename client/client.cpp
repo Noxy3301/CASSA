@@ -43,8 +43,8 @@
 
 #include "../common/common.h"
 
-// ANSI color codes
-#include "../common/ansi_color_code.h"
+// Log macros
+#include "../common/log_macros.h"
 
 // Utilities
 #include "include/command_handler.hpp"
@@ -64,7 +64,7 @@ std::string client_session_id;
 */
 void send_data(SSL *ssl_session, const char *data, size_t data_size) {
     std::string data_str(reinterpret_cast<const char*>(data), data_size);
-    printf(TLS_CLIENT "send data to server: %s\n", data_str.c_str());
+    std::cout << LOG_INFO "Send data to server: " << data_str << std::endl;
     tls_write_to_session_peer(ssl_session, data_str);
 
     // ここで受け取るのは適切じゃないけどテストということで
@@ -76,10 +76,10 @@ void send_data(SSL *ssl_session, const char *data, size_t data_size) {
     std::istringstream iss(data_str);
     std::getline(iss, command, ' ');    // get first token
     if (command == "/get_session_id") {
-        printf(TLS_CLIENT "Session ID: %s\n", response.c_str());
+        std::cout << LOG_INFO "Session ID: " << BGRN << response << CRESET << std::endl;
         client_session_id = response;
     } else {
-        printf(TLS_CLIENT "Response from server: %s\n", response.c_str());
+        std::cout << LOG_INFO "Response from server: " << response << std::endl;
     }
 }
 
@@ -103,8 +103,7 @@ void request_session_id(SSL *ssl_session) {
 }
 
 void handle_command(SSL *ssl_session) {
-    std::cout << BGRN << "[ INFO     ] " << CRESET 
-              << "Awaiting User Commands... (type '/help' for available commands, '/exit' to quit)" << std::endl;
+    std::cout << LOG_INFO "Awaiting User Commands... (type '/help' for available commands, '/exit' to quit)" << std::endl;
 
     CommandHandler command_handler;
     std::vector<std::string> operations;
@@ -135,7 +134,7 @@ void handle_command(SSL *ssl_session) {
 
         // exit the loop if EOF(ctrl+D) is detected or if "/exit" command is entered by the user
         if (std::cin.eof() || command == "/exit") {
-            std::cout << "Exiting..." << std::endl;
+            std::cout << LOG_INFO "Exiting..." << std::endl;
             break;
         }
 
@@ -149,11 +148,9 @@ void handle_command(SSL *ssl_session) {
         if (command == "/maketx") {
             // check if the user is already in transaction
             if (in_transaction) {
-                std::cout << BRED << "[ ERROR    ] " << CRESET
-                          << "You are already in transaction. Please finish or abort the current transaction." << std::endl;
+                std::cout << LOG_ERROR "You are already in transaction. Please finish or abort the current transaction." << std::endl;
             } else {
-                std::cout << BGRN << "[ INFO     ] " << CRESET
-                          << "You are now in transaction. Please enter operations." << std::endl;
+                std::cout << LOG_INFO "You are now in transaction. Please enter operations." << std::endl;
                 operations.clear();
 
                 // set in_transaction to true
@@ -189,8 +186,7 @@ void handle_command(SSL *ssl_session) {
                     operations.clear();
                 }
             } else {
-                std::cout << BRED << "[ ERROR    ] " << CRESET
-                          << "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
+                std::cout << LOG_ERROR "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
             }
             continue;
         }
@@ -200,17 +196,14 @@ void handle_command(SSL *ssl_session) {
             if (in_transaction) {
                 // check if the transaction has at least 1 operation (except BEGIN_TRANSACTION and END_TRANSACTION)
                 if (operations.size() > 0) {
-                    std::cout << BGRN << "[ INFO     ] " << CRESET
-                              << "Last operation " << GRN << "\"" <<  operations.back() << "\" " << CRESET << "removed from transaction." << std::endl;
+                    std::cout << LOG_INFO "Last operation " << GRN << "\"" <<  operations.back() << "\" " << CRESET << "removed from transaction." << std::endl;
                     // remove the last operation
                     operations.pop_back();
                 } else {
-                    std::cout << BRED << "[ ERROR    ] " << CRESET
-                              << "No operation to undo." << std::endl;
+                    std::cout << LOG_ERROR "No operation to undo." << std::endl;
                 }
             } else {
-                std::cout << BRED << "[ ERROR    ] " << CRESET
-                          << "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
+                std::cout << LOG_ERROR "You are not in transaction. Please enter '/maketx' to start a new transaction." << std::endl;
             }
             continue;
         }
@@ -221,9 +214,15 @@ void handle_command(SSL *ssl_session) {
             clock_gettime(CLOCK_REALTIME, &ts);
             long int timestamp_sec = ts.tv_sec;
             long int timestamp_nsec = ts.tv_nsec;
+
+            // create JSON object for the transaction
             std::vector<std::string> op = {"INSERT hoge fuga", "INSERT piyo pao"};
+
+            // dump json object to string
             nlohmann::json test_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, op);
             std::string test_json_string = test_json.dump();
+
+            // send the transaction to the server
             send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
             continue;
         }
@@ -238,19 +237,16 @@ void handle_command(SSL *ssl_session) {
             if (is_valid_syntax) {
                 // if the operation is valid, add it to the transaction
                 operations.push_back(command);
-                std::cout << BGRN << "[ INFO     ] " << CRESET
-                          << "Operation " << GRN << "\"" <<  command << "\" " << CRESET << "added to transaction." << std::endl;
+                std::cout << LOG_INFO "Operation " << GRN << "\"" <<  command << "\" " << CRESET << "added to transaction." << std::endl;
             } else {
                 // if the operation is invalid, print the error message
-                std::cout << BRED << "[ ERROR    ] " << CRESET
-                          << check_syntax_result.second << std::endl;
+                std::cout << LOG_ERROR << check_syntax_result.second << std::endl;
             }
             continue;
         }
 
         // handle unknown command because valid command was not entered here
-        std::cout << BRED << "[ ERROR    ] " << CRESET
-                  << "Unknown command. Please enter '/help' to see available commands." << std::endl;
+        std::cout << LOG_ERROR "Unknown command. Please enter '/help' to see available commands." << std::endl;
     }
 }
 
@@ -278,7 +274,7 @@ int parse_arguments(int argc, char** argv, char** server_name, char** server_por
     goto done;
 
 print_usage:
-    printf(TLS_CLIENT "Usage: %s -server:<name> -port:<port>\n", argv[0]);
+    std::cout << LOG_INFO "Usage: " << argv[0] << " -server:<name> -port:<port>" << std::endl;
 done:
     return ret;
 }
@@ -302,7 +298,7 @@ int create_socket(char* server_name, char* server_port) {
 
     // Resolve the server hostname
     if ((res = getaddrinfo(server_name, server_port, &hints, &dest_info)) != 0) {
-        printf(TLS_CLIENT "Error: Cannot resolve hostname %s. %s\n", server_name, gai_strerror(res));
+        std::cout << LOG_ERROR "Cannot resolve hostname " << server_name << ". " << gai_strerror(res) << std::endl;
         goto done;
     }
 
@@ -318,25 +314,25 @@ int create_socket(char* server_name, char* server_port) {
 
     // Check if a valid address was found
     if (!curr_di) {
-        printf(TLS_CLIENT "Error: Cannot get address for hostname %s.\n", server_name);
+        std::cout << LOG_ERROR "Cannot get address for hostname " << server_name << "." << std::endl;
         goto done;
     }
 
     // Create a socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
-        printf(TLS_CLIENT "Error: Cannot create socket %d.\n", errno);
+        std::cout << LOG_ERROR "Cannot create socket " << errno << "." << std::endl;
         goto done;
     }
 
     // Connect to the server
     if (connect(sockfd, (struct sockaddr*)curr_di->ai_addr, sizeof(struct sockaddr)) == -1) {
-        printf(TLS_CLIENT "failed to connect to %s:%s (errno=%d)\n", server_name, server_port, errno);
+        std::cout << LOG_ERROR "Cannot connect to " << server_name << ":" << server_port << " (errno=" << errno << ")." << std::endl;
         close(sockfd);
         sockfd = -1;
         goto done;
     }
-    printf(TLS_CLIENT "connected to %s:%s\n", server_name, server_port);
+    std::cout << LOG_INFO "Connected to " << server_name << ":" << server_port << std::endl;
 
 done:
     // Clean up
@@ -355,9 +351,9 @@ int main(int argc, char** argv) {
     char* server_port = nullptr;
     int error = 0;
 
-    printf("\nStarting" TLS_CLIENT "\n\n\n");
+    std::cout << LOG_INFO "Starting CASSA Client ..." << std::endl;
     if ((error = parse_arguments(argc, argv, &server_name, &server_port)) != 0) {
-        printf(TLS_CLIENT "TLS client:parse input parmeter failed (%d)!\n", error);
+        std::cout << LOG_INFO "Parse input parmeter failed (" << error << ")!" << std::endl;
         goto done;
     }
 
@@ -367,13 +363,12 @@ int main(int argc, char** argv) {
     SSL_load_error_strings();
 
     if (SSL_library_init() < 0) {
-        printf(TLS_CLIENT
-               "TLS client: could not initialize the OpenSSL library !\n");
+        std::cout << LOG_ERROR "Could not initialize the OpenSSL library !" << std::endl;
         goto done;
     }
 
     if ((ctx = SSL_CTX_new(SSLv23_client_method())) == nullptr) {
-        printf(TLS_CLIENT "TLS client: unable to create a new SSL context\n");
+        std::cout << LOG_ERROR "Unable to create a new SSL context" << std::endl;
         goto done;
     }
 
@@ -386,26 +381,25 @@ int main(int argc, char** argv) {
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, &verify_callback);
     
     if ((ssl = SSL_new(ctx)) == nullptr) {
-        printf(TLS_CLIENT
-               "Unable to create a new SSL connection state object\n");
+        std::cout << LOG_ERROR "Unable to create a new SSL connection state object" << std::endl;
         goto done;
     }
 
     serversocket = create_socket(server_name, server_port);
     if (serversocket == -1) {
-        printf(TLS_CLIENT "create a socket and initate a TCP connect to server: %s:%s " "(errno=%d)\n", server_name, server_port, errno);
+        std::cout << LOG_INFO "Create a socket and initate a TCP connect to server: " << server_name << ":" << server_port << " (errno=" << errno << ")" << std::endl;
         goto done;
     }
 
-    printf(TLS_CLIENT "create a socket and initate a TCP connect to server: %s:%s " "\n", server_name, server_port);
+    std::cout << LOG_INFO "Create a socket and initate a TCP connect to server: " << server_name << ":" << server_port << std::endl;
     
     // setup ssl socket and initiate TLS connection with TLS server
     SSL_set_fd(ssl, serversocket);
     if ((error = SSL_connect(ssl)) != 1){
-        printf(TLS_CLIENT "Error: Could not establish an SSL session ret2=%d " "SSL_get_error()=%d\n", error, SSL_get_error(ssl, error));
+        std::cout << LOG_ERROR "Could not establish an SSL session ret2=" << error << " SSL_get_error()=" << SSL_get_error(ssl, error) << std::endl;
         goto done;
     }
-    printf(TLS_CLIENT "successfully established TLS channel:%s\n", SSL_get_version(ssl));
+    std::cout << LOG_INFO "Successfully established TLS channel:" << SSL_get_version(ssl) << std::endl;
 
     // request session ID from server
     request_session_id(ssl);
@@ -425,6 +419,6 @@ done:
     if (ctx)
         SSL_CTX_free(ctx);
 
-    printf(TLS_CLIENT " %s\n", (ret == 0) ? "success" : "failed");
+    std::cout << ((ret == 0) ? LOG_INFO "success" : LOG_ERROR "failed") << std::endl;
     return (ret);
 }

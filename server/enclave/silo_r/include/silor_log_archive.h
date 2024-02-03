@@ -6,6 +6,7 @@
 
 #include "../../../../common/common.h" // for t_print()
 #include "../../../../common/ansi_color_code.h"
+#include "../../../../common/log_macros.h"
 #include "../../../../common/third_party/json.hpp" // for nlohmann::json
 
 #include "silor_log_record.h"

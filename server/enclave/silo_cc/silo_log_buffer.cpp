@@ -151,7 +151,6 @@ std::string LogBuffer::create_json_log(std::string &prev_epoch_hash, std::string
                                                              record.key_,
                                                              record.value_);
         accumulated_hashes += current_hash;
-        t_print("accumulated_hashes: %s\n", accumulated_hashes.c_str());
 
         // If log record exists in buffer, set the hash value of the previous record
         if (!json_log_set.empty()) {

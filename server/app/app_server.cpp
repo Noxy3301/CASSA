@@ -147,7 +147,7 @@ int ocall_save_logfile(size_t thid, const uint8_t* sealed_data, const size_t sea
     // append log
     file.write(reinterpret_cast<const char*>(sealed_data), sealed_size);
     file.close();
-    printf(LOG_INFO "Logfile saved\n");
+    // printf(LOG_DEBUG "Logfile saved\n");
     return 0;
 }
 

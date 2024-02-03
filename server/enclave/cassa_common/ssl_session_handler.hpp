@@ -11,6 +11,7 @@
 
 // for t_print()
 #include "../../../common/common.h"
+#include "../../../common/log_macros.h"
 
 struct SSLSession {
     SSL* ssl_session;  // SSL session
@@ -126,30 +127,27 @@ public:
         // error handling
         switch (ssl_error_code) {
             case SSL_ERROR_NONE:
-                // this error code is returned when SSL_read/SSL_write succeeds
-                t_print(TLS_SERVER "SSL_ERROR_NONE\n");
+                // This error code is returned when SSL_read/SSL_write succeeds
+                // t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END BGRN "SSL operation completed successfully.\n" CRESET, session_id.c_str());  // remove SessionでのSSL_ERROR_NONEは正常にセッションが閉じられたことを示すはず
+                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END BGRN "Session closed successfully.\n" CRESET, session_id.c_str());
                 break;
             case SSL_ERROR_SSL:
-                // this error code is returned when an error occurred 
-                // (e.g, protocol error, handshake failure)
-                t_print(TLS_SERVER "SSL_ERROR_SSL\n");
+                // This error code is returned when an error occurred (e.g, protocol error, handshake failure)
+                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END BRED "A protocol error or handshake failure occurred.\n" CRESET, session_id.c_str());
                 break;
             case SSL_ERROR_WANT_READ:
-                // this error code is returned when SSL_read finds no data
-                // in non-blocking mode, do nothing as it's normal behavior.
+                // This error code is returned when SSL_read finds no data in non-blocking mode, do nothing as it's normal behavior.
                 return;
             case SSL_ERROR_SYSCALL:
-                // this error code is returned when the client closes 
-                // the connection without sending a close_notify alert
-                t_print(TLS_SERVER "Session ID: %s may have closed unexpectedly (SSL_ERROR_SYSCALL).\n", session_id.c_str());
+                // This error code is returned when the client closes the connection without sending a close_notify alert
+                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END BRED "Session may have closed unexpectedly.\n" CRESET, session_id.c_str());
                 break;
             case SSL_ERROR_ZERO_RETURN:
-                // this error code is returned when the client closes 
-                // the connection with sending a close_notify alert
-                t_print(TLS_SERVER "Session ID: %s has closed (SSL_ERROR_ZERO_RETURN).\n", session_id.c_str());
+                // This error code is returned when the client closes the connection with sending a close_notify alert
+                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END BGRN "Session closed successfully.\n" CRESET, session_id.c_str());
                 break;
             default:
-                t_print(TLS_SERVER "Unknown error code: %d\n", ssl_error_code);
+                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END BRED "Unknown error code: %d\n" CRESET, session_id.c_str(), ssl_error_code);
                 break;
         }
 

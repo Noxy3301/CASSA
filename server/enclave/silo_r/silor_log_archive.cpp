@@ -16,7 +16,7 @@ int RecoveryLogArchive::verify_epoch_level_integrity(std::vector<RecoveryLogReco
         // Epoch-level integrity check
         if (it->epoch_ == current_epoch) {
             if (it->prev_epoch_hash_ != this->previous_epoch_hash_) {
-                t_print(DEBUG BRED"Validation failed for epoch %u\n" CRESET, current_epoch);
+                t_print(LOG_ERROR BRED "Validation failed for epoch %u\n" CRESET, current_epoch);
                 return -1;
             }
 
@@ -36,7 +36,7 @@ int RecoveryLogArchive::verify_epoch_level_integrity(std::vector<RecoveryLogReco
 
             // Log-level integrity check
             if (!verify_log_level_integrity(*it)) {
-                t_print(DEBUG BRED"Validation failed for epoch %u\n" CRESET, current_epoch);
+                t_print(LOG_ERROR BRED "Validation failed for epoch %u\n" CRESET, current_epoch);
                 return -2;
             }
 

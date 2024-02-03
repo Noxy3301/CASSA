@@ -178,7 +178,7 @@ void ecall_ssl_session_monitor() {
                 // receive data from the session
                 std::string received_data;
                 tls_read_from_session_peer(ssl_session, received_data);
-                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Received data from client: %s\n", session_id.c_str(), received_data.c_str());
+                t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Received data from client (%lu bytes)\n", session_id.c_str(), received_data.size());
 
                 // handle if reveiced data is command
                 std::string command, token_sec, token_nsec;
@@ -204,12 +204,10 @@ void ecall_ssl_session_monitor() {
                     it++;
                     continue;
                 }
-                
-                // TODO: execute transaction
+
+                // put transaction to the transaction balancer
                 tx_balancer.putTransaction(received_data);
 
-                // // debug
-                // tls_write_to_session_peer(ssl_session, received_data);
             } else if (result == 0) {
                 // remove the session from the map and reset iterator
                 // NOTE: SSL_ERROR_NONE is normal termination
@@ -299,7 +297,7 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
 
     // Update timestamp in SSL session
     ssl_session_handler.setTimestamp(client_session_id, timestamp_sec, timestamp_nsec);
-    t_print(LOG_DEBUG "client_session_id: %s, timestamp_sec: %ld, timestamp_nsec: %ld\n", client_session_id.c_str(), timestamp_sec, timestamp_nsec); // for debug
+    // t_print(LOG_DEBUG "client_session_id: %s, timestamp_sec: %ld, timestamp_nsec: %ld\n", client_session_id.c_str(), timestamp_sec, timestamp_nsec); // for debug
 
     // retrieve operations
     const auto &transactions_json = json["transaction"];
@@ -481,7 +479,7 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         std::string json_message_dump;
         bool send_responce = false;
         if (result == 0 && trans.write_set_.size() == 0) {
-            t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Read-only transaction, read items: %d\n", trans.session_id_, trans.nid_.read_key_value_pairs.size());
+            t_print(LOG_SESSION_START_BMAG "%s" LOG_SESSION_END "Read-only transaction, read items: %d\n", trans.session_id_.c_str(), trans.nid_.read_key_value_pairs.size());
             json_message_dump = create_message(result, error_message_content, trans.nid_.read_key_value_pairs).dump();
             send_responce = true;
         } else if (result != 0) {

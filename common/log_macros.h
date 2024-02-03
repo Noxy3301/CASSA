@@ -8,4 +8,8 @@
 #define LOG_FATAL MAG "[ FATAL    ] " CRESET
 #define LOG_DEBUG CYN "[ DEBUG    ] " CRESET
 
+#define LOG_SESSION_START_BGRN BGRN "[   "
+#define LOG_SESSION_START_RED RED   "[   "
+#define LOG_SESSION_END " ] " CRESET
+
 #define LOG_SPACE     "             "

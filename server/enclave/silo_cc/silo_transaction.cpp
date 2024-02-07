@@ -250,7 +250,6 @@ void TxExecutor::lockWriteSet() {
     TIDword expected, desired;
 
     for (auto itr = write_set_.begin(); itr != write_set_.end(); itr++) {
-        if (itr->op_ == OpType::INSERT) continue;
         expected.obj_ = loadAcquire((*itr).value_->tidword_.obj_);
         for (;;) {
             if (expected.lock) {

@@ -248,13 +248,10 @@ Status TxExecutor::scan(std::string str_left_key, bool l_exclusive,
  * @note In this implementation, records are registered in TxExecutor's write_set_, and during the commit phase, the records are updated based on the information in write_set_
  */
 Status TxExecutor::write(std::string &str_key, std::string &str_value) {
-    // Place variables before the first goto instruction to avoid "crosses initialization of ..." error under -fpermissive.
     Key key(str_key);
     Value *found_value;
-    ReadElement *readElement;
-
+    
     WriteElement *writeElement = searchWriteSet(key);
-
     if (writeElement) {
         // insertによってwrite_set_に追加された場合、writeはそのデータを観測できない
         if (writeElement->op_ == OpType::INSERT) {
@@ -267,7 +264,7 @@ Status TxExecutor::write(std::string &str_key, std::string &str_value) {
         }
     }
 
-    readElement = searchReadSet(key);
+    ReadElement *readElement = searchReadSet(key);
     if (readElement) {
         found_value = readElement->value_;
     } else {

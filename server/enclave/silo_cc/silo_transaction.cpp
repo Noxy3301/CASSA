@@ -47,7 +47,7 @@ Status TxExecutor::insert(std::string &str_key, std::string &str_value) {
 
     // absent bitが立っているvalueを作成して、Masstreeに挿入する
     Value *value = new Value(str_value);
-    value->tidword_.absent = true;
+    value->tidword_.init();
 
     Status status = masstree.insert_value(key, value, gc_);
     if (status == Status::WARN_ALREADY_EXISTS) {
@@ -83,7 +83,6 @@ Status TxExecutor::tx_delete(std::string &str_key) {
 
     ReadElement *readElement = searchReadSet(key);
     if (readElement) {
-        // ここで観測される場合は、readによって追加されたデータであることが保証されている
         found_value = readElement->value_;
     } else {
         found_value = masstree.get_value(key);
@@ -220,7 +219,7 @@ Status TxExecutor::scan(std::string str_left_key, bool l_exclusive,
             continue;
         }
 
-        // If not found in local sets, check the actual value and add to results
+        // If not found in local sets, check the actual value and add to results and read_set_ (read_set_では重複が許容されているっぽい？)
         Status status = read_internal(pair.first, pair.second);
         if (status != Status::OK && status != Status::WARN_NOT_FOUND) {
             return status;
@@ -250,19 +249,9 @@ Status TxExecutor::scan(std::string str_left_key, bool l_exclusive,
 Status TxExecutor::write(std::string &str_key, std::string &str_value) {
     Key key(str_key);
     Value *found_value;
-    
-    WriteElement *writeElement = searchWriteSet(key);
-    if (writeElement) {
-        // insertによってwrite_set_に追加された場合、writeはそのデータを観測できない
-        if (writeElement->op_ == OpType::INSERT) {
-            return Status::WARN_NOT_FOUND;
-        }
 
-        // deleteまたはwriteによってwrite_set_に追加された場合、何もしない(CCBenchのwriteの仕様に則る)
-        if (writeElement->op_ == OpType::WRITE || writeElement->op_ == OpType::DELETE) {
-            return Status::OK;
-        }
-    }
+    // If the key is already in the write set, return OK. (Following CCBench's write specification)
+    if (searchWriteSet(key)) return Status::OK;
 
     ReadElement *readElement = searchReadSet(key);
     if (readElement) {
@@ -290,6 +279,7 @@ void TxExecutor::lockWriteSet() {
     TIDword expected, desired;
 
     for (auto itr = write_set_.begin(); itr != write_set_.end(); itr++) {
+        if (itr->op_ == OpType::INSERT) continue;
         expected.obj_ = loadAcquire((*itr).value_->tidword_.obj_);
         for (;;) {
             if (expected.lock) {

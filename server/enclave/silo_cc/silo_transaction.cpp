@@ -386,7 +386,8 @@ void TxExecutor::writePhase() {
                 storeRelease(itr->value_->tidword_.obj_, maxtid.obj_);
                 break;
             case OpType::DELETE:
-                // TODO: delete implementation
+                maxtid.absent = true;
+                storeRelease(itr->value_->tidword_.obj_, maxtid.obj_);
                 break;
             default:
                 assert(false);  // unreachable

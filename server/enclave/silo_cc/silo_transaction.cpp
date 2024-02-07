@@ -62,8 +62,38 @@ Status TxExecutor::insert(std::string &str_key, std::string &str_value) {
     return Status::OK;
 }
 
-// TODO: delete implementation
-// void TxExecutor::tx_delete(Key &key) {}
+Status TxExecutor::tx_delete(std::string &str_key) {
+    Key key(str_key);
+    Value *found_value = nullptr;
+
+    WriteElement *writeElement = searchWriteSet(key);
+    if (writeElement) {
+        // insertによってwrite_set_に追加された場合、deleteはそのデータを観測できない
+        if (writeElement->op_ == OpType::INSERT) {
+            return Status::WARN_NOT_FOUND;
+        }
+
+        // deleteまたはwriteによってwrite_set_に追加された場合、何もしない(CCBenchのwriteの仕様に則る)
+        if (writeElement->op_ == OpType::DELETE || writeElement->op_ == OpType::WRITE){
+            return Status::OK;
+        }
+    }
+
+    ReadElement *readElement = searchReadSet(key);
+    if (readElement) {
+        // ここで観測される場合は、readによって追加されたデータであることが保証されている
+        found_value = readElement->value_;
+    } else {
+        found_value = masstree.get_value(key);
+        if (found_value == nullptr) {
+            return Status::WARN_NOT_FOUND;
+        }
+    }
+
+    write_set_.emplace_back(key, found_value, "", OpType::DELETE);
+
+    return Status::OK;
+}
 
 Status TxExecutor::read(std::string &str_key, std::string &retrun_value) {
     // Place variables before the first goto instruction to avoid "crosses initialization of ..." error under -fpermissive.

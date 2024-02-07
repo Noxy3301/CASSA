@@ -55,6 +55,8 @@ Status TxExecutor::insert(std::string &str_key, std::string &str_value) {
         return status;
     }
 
+    // `absent state and with TID 0`としてread_set_に追加する(横取り防止のため)
+    read_set_.emplace_back(key, value, value->tidword_);
     // write_set_は指定したvalueのbody_(std::string)をstr_valueで更新する
     // insertの場合、value->body_ == str_valueだけど、write_set_の形式に合わせることで、writePhase()での処理を共通化してる
     write_set_.emplace_back(key, value, str_value, OpType::INSERT);

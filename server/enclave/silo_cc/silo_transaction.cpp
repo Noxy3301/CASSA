@@ -251,7 +251,19 @@ Status TxExecutor::write(std::string &str_key, std::string &str_value) {
     Value *found_value;
     ReadElement *readElement;
 
-    if (searchWriteSet(key)) goto FINISH_WRITE;
+    WriteElement *writeElement = searchWriteSet(key);
+
+    if (writeElement) {
+        // insertによってwrite_set_に追加された場合、writeはそのデータを観測できない
+        if (writeElement->op_ == OpType::INSERT) {
+            return Status::WARN_NOT_FOUND;
+        }
+
+        // deleteまたはwriteによってwrite_set_に追加された場合、何もしない(CCBenchのwriteの仕様に則る)
+        if (writeElement->op_ == OpType::WRITE || writeElement->op_ == OpType::DELETE) {
+            return Status::OK;
+        }
+    }
 
     readElement = searchReadSet(key);
     if (readElement) {
@@ -263,7 +275,6 @@ Status TxExecutor::write(std::string &str_key, std::string &str_value) {
 
     write_set_.emplace_back(key, found_value, str_value, OpType::WRITE);
 
-FINISH_WRITE:
     return Status::OK;
 }
 

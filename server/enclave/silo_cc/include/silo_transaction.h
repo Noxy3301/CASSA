@@ -76,7 +76,7 @@ public:
     
     // トランザクションの操作
     Status insert(std::string &str_key, std::string &str_value);
-    // void tx_delete(Key &key); // キーの削除
+    Status tx_delete(std::string &str_key); // deleteは予約語なのでtx_delete
     Status read(std::string &str_key, std::string &retrun_value);
     Status read_internal(Key &key, Value *value);
     Status write(std::string &str_key, std::string &str_value);

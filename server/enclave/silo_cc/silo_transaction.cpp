@@ -349,7 +349,9 @@ bool TxExecutor::validationPhase() {
     for (auto itr = read_set_.begin(); itr != read_set_.end(); itr++) {
         // [1]
         check.obj_ = loadAcquire((*itr).value_->tidword_.obj_);
-        if ((*itr).get_tidword().epoch != check.epoch || (*itr).get_tidword().TID != check.TID) {
+        if ((itr->op_ == OpType::INSERT && !check.absent) || 
+            (*itr).get_tidword().epoch != check.epoch || 
+            (*itr).get_tidword().TID != check.TID) {
             status_ = TransactionStatus::Aborted;
             unlockWriteSet();
             return false;

@@ -309,6 +309,8 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
 
         if (operation_str == "INSERT") {
             op_type = OpType::INSERT;
+        } else if (operation_str == "DELETE") {
+            op_type = OpType::DELETE;
         } else if (operation_str == "READ") {
             op_type = OpType::READ;
         } else if (operation_str == "WRITE") {
@@ -328,7 +330,7 @@ int json_to_procedures(std::string &session_id, std::vector<Procedure> &procedur
             procedures.emplace_back(op_type, left_key, l_exclusive, right_key, r_exclusive);
         } else {
             std::string key_str = operation["key"];
-            std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ), set empty string
+            std::string value_str = operation.value("value", "");   // If value does not exist (e.g., READ, DELETE), set empty string
             procedures.emplace_back(op_type, key_str, value_str);
         }
     }
@@ -417,9 +419,13 @@ RETRY:
                     }
                 }
                 break;
-            // case OpType::DELETE:
-            //     trans.del(key);
-            //     break;
+            case OpType::DELETE:
+                status = trans.tx_delete((*itr).key_);
+                if (status == Status::WARN_NOT_FOUND) {
+                    t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Key: %s is not found\n", trans.session_id_.c_str(), (*itr).key_.c_str());
+                    error_message_content += "Key: " + (*itr).key_ + " is not found\n";
+                }
+                break;
             default:
                 assert(false);  // ここには来ないはず
                 break;

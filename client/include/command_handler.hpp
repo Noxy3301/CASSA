@@ -35,7 +35,7 @@ public:
 
             << "=== Transaction operations ===\n"
             << "  - " BGRN "[x]" CRESET " INSERT <key> <value> : Insert a new key-value pair.\n"
-            << "  - " BRED "[ ]" CRESET " DELETE <key>         : Delete the key-value pair associated with the specified key.\n"
+            << "  - " BGRN "[x]" CRESET " DELETE <key>         : Delete the key-value pair associated with the specified key.\n"
             << "  - " BGRN "[x]" CRESET " READ   <key>         : Retrieve the value associated with the specified key.\n"
             << "  - " BGRN "[x]" CRESET " WRITE  <key> <value> : Set a value associated with the specified key.\n"
             << "  - " BRED "[ ]" CRESET " RMW    <key> <value> : Read the value associated with the specified key, and then write the specified value.\n"

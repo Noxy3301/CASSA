@@ -108,6 +108,9 @@ int RecoveryManager::execute_recovery() {
                 Key key(log_record.key_);
                 Value *found_value = masstree.get_value(key);
                 found_value->body_ = log_record.value_;
+            } else if (log_record.operation_type_ == "DELETE") {
+                Key key(log_record.key_);
+                masstree.remove_value(key, gc);
             } else {
                 t_print(BRED "Unknown operation_type_: %s\n" CRESET, log_record.operation_type_.c_str());
                 return -1;

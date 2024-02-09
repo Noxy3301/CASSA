@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../../common/third_party/json.hpp"
+#include "../../common/openssl_base64.h"
 
 /**
  * @brief Parse commands and generate JSON object
@@ -62,11 +63,12 @@ nlohmann::json parse_command(long int timestamp_sec,
             std::string key, value;
             ss >> key;
             if (operation_type == "INSERT" || operation_type == "WRITE" || operation_type == "RMW") {
-                ss >> value;
+                std::getline(ss >> std::ws, value); // 行の残りを読み込む
+                std::string encoded_value = base64_encode(value); // 全体をBase64エンコード
                 nlohmann::json operation = {
                     {"operation", operation_type},
                     {"key", key},
-                    {"value", value}
+                    {"value", encoded_value}
                 };
 
                 transaction["transaction"].push_back(operation);

@@ -227,6 +227,29 @@ void handle_command(SSL *ssl_session) {
             continue;
         }
 
+        if (command.rfind("/stat", 0) == 0) {
+            std::istringstream iss(command);
+            std::string cmd, drugName, attribute;
+
+            if (!(iss >> cmd >> drugName >> attribute)) {
+                std::cout << LOG_ERROR "Invalid /stat command usage. Correct usage: /stat <drug_name> <attribute>" << std::endl;
+                continue;
+            }
+
+            // 対応する属性が正しいかを確認
+            if (attribute != "age" && attribute != "blood_type" && attribute != "weight" && attribute != "height") {
+                std::cout << LOG_ERROR "Invalid attribute. Must be one of: age, blood_type, weight, height" << std::endl;
+                continue;
+            }
+
+            // 末尾にsession idを追加
+            command += " " + client_session_id;
+
+            // サーバーにコマンドを送信
+            send_data(ssl_session, command.c_str(), command.length());
+            continue;
+        }
+
         // handle operations if in transaction
         if (in_transaction) {
             // check if the command is a valid operation

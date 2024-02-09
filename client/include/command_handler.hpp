@@ -86,7 +86,6 @@ public:
         std::istringstream stream(operation);
         std::string operation_type;
 
-        // get operation type (e.g., INSERT, READ, WRITE, etc.)
         stream >> operation_type;
         if (!isAscii(operation_type)) {
             return std::make_pair(false, "Error: Non-ASCII character detected in: " + operation_type);
@@ -95,26 +94,19 @@ public:
             return std::make_pair(false, "Unknown operation: " + operation_type);
         }
         
-        // check if the operation_type has the correct number of arguments and if the arguments are ASCII
         if (operation_type == "INSERT" || operation_type == "WRITE" || operation_type == "RMW") {
-            // INSERT, WRITE, RMW operations require two arguments (key, value)
-            std::string key, value;
-            if (!(stream >> key >> value)) {
-                return std::make_pair(false, "Syntax error: " + operation_type + " operation requires `key` and `value`.");
-            } else {
-                // check if the arguments are ASCII
-                if (!isAscii(key)) {
-                    return std::make_pair(false, "Error: Non-ASCII character detected in: " + key);
-                }
-                if (!isAscii(value)) {
-                    return std::make_pair(false, "Error: Non-ASCII character detected in: " + value);
-                }
+            std::string key;
+            stream >> key;
+            if (!isAscii(key)) {
+                return std::make_pair(false, "Error: Non-ASCII character detected in: " + key);
+            }
+            
+            // Extract the rest of the stream as a single value string for JSON objects
+            std::string value(std::istreambuf_iterator<char>(stream >> std::ws), {});
 
-                // check too many arguments
-                std::string extra;
-                if (stream >> extra) {
-                    return std::make_pair(false, "Syntax error: Too many arguments for the " + operation_type + " operation.");
-                }
+            // Ensure that value is not empty for INSERT and WRITE operations
+            if ((operation_type == "INSERT" || operation_type == "WRITE") && value.empty()) {
+                return std::make_pair(false, "Syntax error: " + operation_type + " operation requires `key` and `value`.");
             }
 
         } else if (operation_type == "READ" || operation_type == "DELETE") {

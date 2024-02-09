@@ -51,6 +51,7 @@
 // CASSA/Utilities 
 #include "cassa_common/transaction_balancer.hpp"
 #include "../../common/log_macros.h"
+#include "../../common/openssl_base64.h"
 
 // OpenSSL Utilities
 #include "../../common/openssl_utility_enclave.h"
@@ -448,6 +449,111 @@ RETRY:
     }
 }
 
+int process_stat_command(TxExecutor &trans, const std::string &command, std::string &error_message_content) {
+    // parse command
+    std::istringstream iss(command);
+    std::string cmd, drug_name, attribute, session_id;
+    iss >> cmd >> drug_name >> attribute >> session_id;
+    trans.session_id_ = session_id;
+
+    // Proceed with transaction execution if the conversion is successful
+RETRY:
+    trans.durableEpochWork(trans.epoch_timer_start, trans.epoch_timer_stop, false); // TODO: falseをどうするか考える
+    trans.begin(trans.session_id_);
+    std::vector<std::pair<std::string, std::string>> scan_result; // Store the result of the scan operation
+
+    std::string masstree_min_key = masstree.get_min_key();
+    std::string masstree_max_key = masstree.get_max_key();
+
+    if (masstree_min_key.empty() || masstree_max_key.empty()) {
+        t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Masstree is empty\n", trans.session_id_);
+        return -1;
+    }
+
+    Status status = trans.scan(masstree_min_key, false, masstree_max_key, false, scan_result);
+    if (status == Status::ERROR_CONCURRENT_WRITE_OR_DELETE) {
+        t_print(LOG_SESSION_START_RED "%s" LOG_SESSION_END "Concurrent write or delete detected\n", trans.session_id_.c_str());
+        trans.abort();
+        goto RETRY;
+    }
+
+    // commit protocol
+    if (trans.validationPhase()) {
+        trans.writePhase();
+    } else {
+        trans.abort();
+        goto RETRY;
+    }
+
+    // scan結果を処理する
+    std::map<std::string, std::vector<int>> stats;
+    int total_data_count = scan_result.size();
+    for (auto &key_value : scan_result) {
+        std::string key = key_value.first;
+        std::string value = key_value.second;
+
+        // valueはBase64エンコードされたJSON文字列なので、デコードする
+        std::string decoded_value = base64_decode(value);
+        auto json_value = nlohmann::json::parse(decoded_value);
+
+        // drug_nameが一致するレコードのみ処理する
+        if (json_value["drug_name"] == drug_name) {
+            std::string scale;
+            if (attribute == "age") {
+                // 年齢を10歳ごとに区切る
+                int age = json_value["age"].get<int>();
+                age = (age / 10) * 10; // 10代ごとに丸める
+                scale = std::to_string(age);
+            } else if (attribute == "height") {
+                // 身長を5cm刻みに区切る
+                int height = json_value["height"].get<int>();
+                height = (height / 5) * 5; // 5cm刻みに丸める
+                scale = std::to_string(height);
+            } else if (attribute == "weight") {
+                // 体重を5kg刻みに区切る
+                int weight = json_value["weight"].get<int>();
+                weight = (weight / 5) * 5; // 5kg刻みに丸める
+                scale = std::to_string(weight);
+            } else if (attribute == "blood_type") {
+                // 血液型はそのまま使う
+                scale = json_value["blood_type"];
+            } else {
+                continue; // 未知の属性
+            }
+
+            int improvement_days = json_value["improvement_days"];
+            stats[scale].push_back(improvement_days);
+        }
+    }
+
+    // 統計情報を計算する
+    nlohmann::json attribute_stats_json = nlohmann::json::object();
+
+    for (auto itr = stats.begin(); itr != stats.end(); itr++) {
+        std::string key = itr->first;
+        std::vector<int> &days = itr->second;
+
+        double sum = 0;
+        for (int day : days) {
+            sum += day;
+        }
+        double average = sum / days.size();
+
+        // 属性値に対する統計情報を追加
+        attribute_stats_json[key] = {{"average_improvement_days", average}};
+    }
+
+    nlohmann::json stats_json = nlohmann::json::object();
+    stats_json[attribute] = attribute_stats_json;
+    stats_json["total_data_count"] = total_data_count;
+
+    // JSONオブジェクトを文字列に変換して、エラーメッセージの内容に格納
+    std::string stats_json_str = stats_json.dump();
+    error_message_content = stats_json_str;
+
+    return 0;
+}
+
 void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
     TxExecutor trans(worker_thid);
     WorkerResult &myres = std::ref(workerResults[worker_thid]);
@@ -475,8 +581,14 @@ void ecall_execute_worker_task(size_t worker_thid, size_t logger_thid) {
         }
 
         // execute transaction
-        std::string error_message_content = "OK";
-        int result = execute_transaction(trans, json_str, error_message_content);
+        std::string error_message_content = "OK, ";
+        int result;
+
+        if (json_str.rfind("/stat", 0) == 0) {
+            result = process_stat_command(trans, json_str, error_message_content);
+        } else {
+            result = execute_transaction(trans, json_str, error_message_content);
+        }
 
         /**
          * If the result is 0 (i.e., success) and the transaction is read-only,

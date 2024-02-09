@@ -23,6 +23,15 @@
  *             WARN_ALREADY_EXISTS.
  */
 Status Masstree::insert_value(Key &key, Value *value, GarbageCollector &gc) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!min_key.has_value() || key < min_key.value()) {
+            min_key = key;
+        }
+        if (!max_key.has_value() || key > max_key.value()) {
+            max_key = key;
+        }
+    }
 RETRY:
     Node *old_root = root.load(std::memory_order_acquire);
     std::pair<Status, Node*> resultPair = masstree_insert(old_root, key, value, gc);

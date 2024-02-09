@@ -104,6 +104,10 @@ class Key {
             return slices.size() < right.slices.size();
         }
 
+        bool operator>(const Key& right) const {
+            return right < *this;
+        }
+
         std::pair<std::vector<uint64_t>, size_t> string_to_uint64t(const std::string &key) {
             std::vector<uint64_t> slices;
             size_t lastSliceSize = 0;
@@ -123,7 +127,7 @@ class Key {
             return std::make_pair(slices, lastSliceSize);
         }
 
-        std::string uint64t_to_string(const std::vector<uint64_t> &slices, size_t lastSliceSize) {
+        std::string uint64t_to_string(const std::vector<uint64_t> &slices, size_t lastSliceSize) const {
             std::string result;
             // 最後のスライス以外の処理
             for (size_t i = 0; i < slices.size() - 1; i++) {
@@ -136,5 +140,9 @@ class Key {
                 result.push_back(static_cast<char>((slices.back() >> ((7 - i) * 8)) & 0xFF));
             }
             return result;
+        }
+
+        std::string to_string() const {
+            return uint64t_to_string(slices, lastSliceSize);
         }
 };

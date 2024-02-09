@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unistd.h> // for ssize_t
+#include <optional>
 
 #include "masstree_node.h"
 #include "masstree_gc.h"

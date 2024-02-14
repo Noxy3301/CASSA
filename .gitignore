@@ -30,3 +30,6 @@ log/
 
 # mrsigner file
 mrsigner.bin
+
+# jsonl files
+*.jsonl

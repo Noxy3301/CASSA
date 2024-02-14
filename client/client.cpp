@@ -33,6 +33,7 @@
 
 #include "sgx_utls.h"
 #include <string.h>
+#include <fstream>
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -224,6 +225,60 @@ void handle_command(SSL *ssl_session) {
 
             // send the transaction to the server
             send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
+            continue;
+        }
+
+        if (command.rfind("/add_sample_jsonl", 0) == 0) {
+            std::istringstream iss(command);
+            std::string cmd, file_index;
+            if (!(iss >> cmd >> file_index)) {
+                std::cout << LOG_ERROR "Invalid /add_sample_jsonl command usage. Correct usage: /add_sample_jsonl <file_index>" << std::endl;
+                continue;
+            }
+
+            std::ifstream file("_sample_data/sample" + file_index + ".jsonl");
+            std::string line;
+            std::vector<std::string> bulk_ops;
+            int count = 0;
+            while (std::getline(file, line)) {
+                bulk_ops.push_back("INSERT " + file_index + "_" + std::to_string(count) + " " + line);
+                count++;
+                
+                // When bulk_ops size reaches 1000, send it to the server
+                if (bulk_ops.size() == 10000) {
+                    // create timestamp
+                    timespec ts;
+                    clock_gettime(CLOCK_REALTIME, &ts);
+                    long int timestamp_sec = ts.tv_sec;
+                    long int timestamp_nsec = ts.tv_nsec;
+                    
+                    // create JSON object for the transaction
+                    nlohmann::json test_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, bulk_ops);
+                    std::string test_json_string = test_json.dump();
+                    
+                    // send the transaction to the server
+                    send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
+                    
+                    // Clear the vector for the next batch
+                    bulk_ops.clear();
+                }
+            }
+            
+            // Send any remaining transactions that did not make a full batch of 1000
+            if (!bulk_ops.empty()) {
+                // create timestamp
+                timespec ts;
+                clock_gettime(CLOCK_REALTIME, &ts);
+                long int timestamp_sec = ts.tv_sec;
+                long int timestamp_nsec = ts.tv_nsec;
+                
+                // create JSON object for the transaction
+                nlohmann::json test_json = parse_command(timestamp_sec, timestamp_nsec, client_session_id, bulk_ops);
+                std::string test_json_string = test_json.dump();
+                
+                // send the transaction to the server
+                send_data(ssl_session, test_json_string.c_str(), test_json_string.length());
+            }
             continue;
         }
 

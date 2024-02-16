@@ -52,8 +52,6 @@ For detailed instructions on setting up Intel DCAP, please refer to the [Intel S
 
 Note: The setup has been tested on Ubuntu* 20.04 LTS Desktop 64 bits and Ubuntu* 20.04 LTS Server 64 bits.
 
-In brief:
-
 #### 1. Subscribe to the Intel PCS Service for ECDSA Attestation to obtain your primary and secondary keys.
 
 Access the [API Portal - Intel SGX and Intel TDX services](https://api.portal.trustedservices.intel.com/) and subscribe to the Intel PCS Service for ECDSA Attestation and acquire a pair of keys: a primary key and a secondary key. These keys are used to fetch the Provisioning Certification Key (PCK) certificates that are essential for attestation. 

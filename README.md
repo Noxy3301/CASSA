@@ -111,7 +111,7 @@ $ sudo su
 # apt install sgx-dcap-pccs
 ```
 
-Note for Step 6: During the installation of Intel SGX DCAP PCCS, you will be prompted to enter several pieces of information, such as the HTTPS listening port, whether the PCCS service should accept local connections only, and your Intel PCS API key. Please enter these details as per your requirements. If you're unsure about any step, refer to the [Intel Software Guard Extensions Data Center Attestation Primitives Quick Install Guide](https://www.intel.com/content/www/us/en/developer/articles/guide/intel-software-guard-extensions-data-center-attestation-primitives-quick-install-guide.html). for detailed explanations and guidance.
+Note for Step 6: During the installation of Intel SGX DCAP PCCS, you will be prompted to enter several pieces of information, such as the HTTPS listening port, whether the PCCS service should accept local connections only, and your Intel PCS API key. Please enter these details as per your requirements. If you're unsure about any step, refer to the [Intel Software Guard Extensions Data Center Attestation Primitives Quick Install Guide](https://www.intel.com/content/www/us/en/developer/articles/guide/intel-software-guard-extensions-data-center-attestation-primitives-quick-install-guide.html) for detailed explanations and guidance.
 
 
 #### 3. Set up Intel SGX DCAP
@@ -158,7 +158,15 @@ $ sudo reboot
 $ PCKIDRetrievalTool
 ```
 
-If you receive a message similar to `"the data has been sent to cache server successfully and pckid_retrieval.csv has been generated successfully!"` despite a registration status error, it indicates success. The tool used your PCS API key for initial communication with the PCCS, which wasn't registered yet, hence the error. However, it successfully queried PCS and saved the results.
+If you encounter warnings like the ones below, your operation was still successful:
+
+```
+Warning: error occurred while setting registration status, the error code is: 4
+Warning: could NOT set the Registration Status to completed status.
+the data has been sent to cache server successfully and pckid_retrieval.csv has been generated successfully!
+```
+
+This indicates that, although there was an issue with setting the registration status due to initial non-registration in the PCCS, the PCS API key facilitated the initial communication, enabling the successful query to PCS and the saving of the results.
 
 #### 5. Install the Intel SGX runtime libraries to enable communication with PCCS.
 

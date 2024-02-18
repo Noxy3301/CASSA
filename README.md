@@ -225,7 +225,7 @@ Currently, we'll proceed with version `sgx_linux_x64_sdk_2.23.100.2`, but always
 Use the following command to install the required tool to use Intel(R) SGX SDK.
 
 ```
-  $ sudo apt-get install build-essential python-is-python3
+$ sudo apt-get install build-essential python-is-python3
 ```
 
 Download and install the latest version of Intel SGX SDK.
@@ -243,8 +243,8 @@ $ source /opt/intel/sgxsdk/environment
 
 ```
 $ git clone {THIS_REPO}
-cd CASSA
-make
+$ cd CASSA
+$ make
 ```
 
 ### Configuration settings
@@ -254,7 +254,7 @@ make
 The server application requires Scalable SGX and can be started with the following command:
 
 ```
-./server/app/cassa_server_host ./server/enclave/cassa_server_enclave.signed.so -port:12341 -server-in-loop
+$ ./server/app/cassa_server_host ./server/enclave/cassa_server_enclave.signed.so -port:12341 -server-in-loop
 ```
 
 This command runs the server host application, specifying the signed enclave file and setting the listening port to 12341.
@@ -264,7 +264,7 @@ This command runs the server host application, specifying the signed enclave fil
 To connect to the server application, use the following command for the client:
 
 ```
-./client/cassa_client_host -server:localhost -port:12341
+$ ./client/cassa_client_host -server:localhost -port:12341
 ```
 
 This connects the client application to the server running on localhost at port 12341.

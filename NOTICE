@@ -1,0 +1,27 @@
+CASSA uses third-party libraries or other resources that may be distributed under
+licenses different from the CASSA project license. In accordance with the
+provided licenses, the following notices are provided:
+
+==================================================
+
+Remote Attestation based TLS and Sample (included in CASSA) is licensed under
+the MIT License. Copyright (c) Open Enclave SDK contributors.
+
+Intel SGX SSL (included in CASSA) is licensed under the BSD 3-clause "New" or
+"Revised" License. Copyright (C) 2011-2017 Intel Corporation. All rights
+reserved.
+
+CCBench (included in CASSA) is licensed under the Apache License, Version 2.0,
+January 2004. http://www.apache.org/licenses/LICENSE-2.0. Copyright (c) 2019,
+takayuki tanabe.
+
+==================================================
+
+Full texts of licenses mentioned above are available in the following locations:
+
+- MIT License: https://opensource.org/licenses/MIT
+- BSD 3-clause "New" or "Revised" License: https://opensource.org/licenses/BSD-3-Clause
+- Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Please note that the above URLs are provided for convenience only. License terms
+and conditions are subject to change by the respective copyright holder.

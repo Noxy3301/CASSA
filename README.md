@@ -152,7 +152,7 @@ $ sudo usermod -aG sgx_prv $(whoami)
 $ sudo reboot
 ```
 
-##### Step 4: Run PCK ID Retrieval Too
+##### Step 4: Run PCK ID Retrieval Tool
 
 ```
 $ PCKIDRetrievalTool
